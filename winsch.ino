@@ -38,6 +38,7 @@
 
 // Machine states, servo object and controller object.
 
+
 struct MachineState {
   SensorsState sensors; // Sensor states (sampled values)
   byte err; // Error states (active/inactive)
@@ -279,9 +280,9 @@ inline void finish() {
 
   // Read serial command
   rx_cmd = (Serial.available()) ? (byte) Serial.read() : C::CM_NOCMD;
-  if (rx_cmd!=C::CM_NOCMD) {
+  if (rx_cmd != C::CM_NOCMD) {
     lcd.print("\x02\x0E");
-    lcd.print("R "+rx_cmd);
+    lcd.print("R " + rx_cmd);
   }
 
   // Read switches.

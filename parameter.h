@@ -72,8 +72,8 @@ namespace Pins {
 //
 namespace LCDStrings {
   const char MSG_STARTUP[] =
-          "\x0C\x04\x13"      // Clear lcd, hide cursor and backlight on
-          "UPPSTART"          // Startup message including firmware version.
+          "\x0C\x04\x13" // Clear lcd, hide cursor and backlight on
+          "UPPSTART" // Startup message including firmware version.
           "\rver " FW_VERSION // Include firmware compile date.
           "\r!V\xE1xel ej i l\xE1ge N";
   const char MSG_CONFIG[] =

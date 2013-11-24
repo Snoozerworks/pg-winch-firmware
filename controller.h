@@ -92,14 +92,14 @@ public:
     // (Well, engine speed is in fact diff in axel speed as we don't know what  
     // gear is actually engaged.)
 
-    eng_spd_comp = ((int)pump_spd * PPT_DRUM + (int)drum_spd * PPT_PUMP) >> 6; // [0, 71]
-    eng_spd_comp = 256 + eng_spd_comp * params[I_PID_K].val;  // [-2016, 2528] , -32, 32
-    eng_spd_comp = max(0, eng_spd_comp);  // [0, 2528]
+    eng_spd_comp = ((int) pump_spd * PPT_DRUM + (int) drum_spd * PPT_PUMP) >> 6; // [0, 71]
+    eng_spd_comp = 256 + eng_spd_comp * params[I_PID_K].val; // [-2016, 2528] , -32, 32
+    eng_spd_comp = max(0, eng_spd_comp); // [0, 2528]
 
-    output = params[I_PID_P].val * error +          // [-4064, 4064]
-            params[I_PID_I].val * integral +        // [0, 8160]
-            params[I_PID_D].val * derivative;       // [-2048, 2048]  ==> tot [-6112, 14272]            
-    output = (output * (long)eng_spd_comp) >> 11;   // [-15451136, 36079616], [-7544, 17617]
+    output = params[I_PID_P].val * error + // [-4064, 4064]
+            params[I_PID_I].val * integral + // [0, 8160]
+            params[I_PID_D].val * derivative; // [-2048, 2048]  ==> tot [-6112, 14272]            
+    output = (output * (long) eng_spd_comp) >> 11; // [-15451136, 36079616], [-7544, 17617]
     output = constrain(output, 0, 255);
 
 
