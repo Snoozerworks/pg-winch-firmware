@@ -486,10 +486,11 @@ void set_bits(boolean set, byte& bitfield, byte bitmask) {
 }
 
 /**
- * Returns true if at least one bit in faults are active in in M.errors. 
+ * Returns true if at least one bit in bitfield are active in in bitmask. 
  * 
- * @param faults
- * @return 
+ * @param byte Bits to look for in bitmask.
+ * @param byte Bits to compare bitfield with.
+ * @return boolean True if any bit is set.
  */
 boolean chk_bits(byte& bitfield, byte bitmask) {
   return (bitfield & bitmask);
