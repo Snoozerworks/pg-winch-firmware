@@ -255,7 +255,7 @@ struct SensorsState {
   volatile byte _drum_cnt; // Used by interrupt handler 1
   volatile byte _pump_cnt; // Used by interrupt handler 0
 
-  byte drum_speed_raw; // Drum speed (counts per sampler x 2)
+  byte drum_speed_raw; // Drum speed (counts per sample x 2)
   byte pump_speed_raw; // Pump speed (counts per sample x 2)
   byte drum_speed; // LP filtered drum_speed_raw
   byte pump_speed; // LP filtered pump_speed_raw
