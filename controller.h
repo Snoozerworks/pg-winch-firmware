@@ -89,7 +89,7 @@ public:
     //    "PID value / (engine speed/k + k)" where k is params[I_PID_K]
     // I.e. the higher engine speed the lower the gain. Note that changing k
     // may also require adjustment of p, i and d gains.
-    // (Well, engine speed is in fact diff in axel speed as we don't know what  
+    // (Well, engine speed is in fact gearbox out speed as we don't know what 
     // gear is actually engaged.)
 
     eng_spd_comp = ((int) pump_spd * PPT_DRUM + (int) drum_spd * PPT_PUMP) >> 6; // [0, 71]
