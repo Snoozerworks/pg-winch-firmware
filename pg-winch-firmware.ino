@@ -420,7 +420,7 @@ void config() {
       params[i].decrease();
 
     } else if (chk_bits(M.sw, C::SW_SP)) { // Set parameter value from serial data.
-      params[i].set(rx_buf[1] << 8 | rx_buf[2]);
+      params[i].set( (int) rx_buf[1] << 8 | (int) rx_buf[2]);
 
     }
 
