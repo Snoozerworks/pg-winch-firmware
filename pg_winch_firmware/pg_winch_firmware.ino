@@ -13,10 +13,13 @@
 
 /**
  * REMINDER
- * 1. On linux; to get the Arduino IDE use the bluetooth serial port type;
+ * 1. On linux Debian; to get the Arduino IDE use the bluetooth serial port
+ * (/dev/rfcomm0) add user to dialout and tty group. Type;
  * > su
- * > ln -s /dev/rfcomm0 /dev/tty99
- * 
+ * > usermod -a -G tty yourUserName
+ * > usermod -a -G dialout yourUserName
+ * Log off and log on again for the changes to take effect! 
+ *
  * 2. Set Arduino IDE to use board "Arduino UNO"
  *
  * 3. The RN42 bluetooth module shall be configure with profile 4 "SPP and DUN-DCE"
