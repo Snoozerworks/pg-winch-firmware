@@ -378,7 +378,7 @@ void config() {
   using namespace P; // This is the parameter namespace.
 
   //  char descr[21];
-  byte rx_buf[3]; // Serial read buffer
+  byte rx_buf[4]; // Serial read buffer. Bytes; 0:command, 1:parameter index, 2+3:parameter value bytes (big endian),
   char rx_len; // Number of byte read by Serial.readBuffer(). 
   byte i; // Parameter array index.
   unsigned long exit_time = -1; // Set timeout. Don't timeout on first loop.
@@ -422,9 +422,8 @@ void config() {
     } else if (chk_bits(M.sw, C::SW_DN)) { // Decrease parameter value.
       params[i].decrease();
 
-    } else if (chk_bits(M.sw, C::SW_SP)) { // Set parameter value from serial data.
-      params[i].set( (int) rx_buf[1] << 8 | (int) rx_buf[2]);
-
+    } else if (chk_bits(M.sw, C::SW_SP) && rx_buf[1] <= INST_PARAM_END) { // Set parameter value from serial data.
+        params[rx_buf[1]].set( (int) rx_buf[2] << 8 | (int) rx_buf[3]);
     }
 
     // Update lcd, transmit parameter to serial and postpone timeout if anything 
@@ -455,8 +454,8 @@ void config() {
 
     // Recieve serial data. Reset command byte (first byte in buffer) to 
     // C::CM_NOCMD if zero bytes received or if bytes are invalid.
-    rx_len = Serial.readBytes((char*) rx_buf, 3);
-    if (rx_len <= 0 || (rx_buf[0] > C::CM__LAST) || (rx_buf[0] == C::CM_SETP && rx_len < 3)) {
+    rx_len = Serial.readBytes((char*) rx_buf, 4);
+    if (rx_len <= 0 || (rx_buf[0] > C::CM__LAST) || (rx_buf[0] == C::CM_SETP && rx_len != 4)) {
       rx_buf[0] = C::CM_NOCMD;
     }
 
