@@ -133,13 +133,29 @@ void loop() {
 	}
 
 	// Start phase. 
-	start();
+	mode_select();
 
-	// Idle or tow mode phase
-	if (chk_bits(M.sw, C::SW_NE)) {
-		idle();
-	} else {
-		tow();
+	switch (M.md) {
+	case C::MD_IDLE:
+		idle_mode();
+		M.next_time = M.time + T_SAMPLE;
+		break;
+
+	case C::MD_TOWING:
+		tow_mode();
+		M.next_time = M.time + T_SAMPLE;
+		break;
+
+	case C::MD_CONFIG_IS:
+	case C::MD_CONFIG_OS:
+		config();
+		M.next_time = M.time ;
+		break;
+
+	case C::MD_STARTUP:
+	case C::MD_NOMODE:
+	default:
+		break;
 	}
 
 	// Finish phase
@@ -151,34 +167,93 @@ void loop() {
 
 /**
  * This is the first step in each loop when running. Tachometers and neutral
- * switch is read first in the loop.
+ * switches are read first in the loop.
  */
-inline void start() {
+inline void mode_select() {
 	// Set alive pin high while working
 	Pins::ALIVE_LED.high();
 
-	// Read tachometers and neutral switch.
+	// Read tachometers.
 	M.sensors.tachometer_read();
-	set_bits((Pins::NEUTRAL_SW.read() == LOW), M.sw, C::SW_NE);
+
+	// Check mode exit conditions.
+	switch (M.md) {
+	case C::MD_IDLE:
+		if (chk_bits(M.sw, C::SW_NE)) {
+			// Gear in neutral.
+
+			if (chk_bits(M.sw, C::SW_IS)) {
+				// Installation settings (virtual) switch active.
+				// Change to installation configuration mode.
+				M.md = C::MD_CONFIG_IS;
+
+			} else if (chk_bits(M.sw, C::SW_ST)) {
+				// Set switch active.
+				// Change to operation configuration mode.
+				M.md = C::MD_CONFIG_OS;
+
+			}
+
+		} else {
+			// Gear engaged.
+
+			if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
+				// Oil temperature limit is exceeded. Stay in idle mode.
+				M.servo.reset();
+
+			} else {
+				// Change to tow mode.
+				M.md = C::MD_TOWING;
+
+				// Reset tachometer errors each time tow mode is entered.
+				set_bits(false, M.err, C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
+
+				// Reset PID-controller to avoid servo glitches.
+				M.pid.reset();
+
+				// Wait for automatic transmission to engage.
+				delay(GEAR_ENGAGE_DELAY);
+			}
+
+		}
+
+		break;
+
+	case C::MD_TOWING:
+		if (chk_bits(M.sw, C::SW_NE)) {
+			// Gear in neutral. Reset servo and change to idle mode.
+			M.md = C::MD_IDLE;
+			M.servo.reset();
+		} else {
+			// Gear engaged. Loop until timeout.
+			while (M.next_time > M.time) {
+				M.time = millis(); // Only one call to millis()
+			}
+		}
+		break;
+
+	case C::MD_CONFIG_IS:
+	case C::MD_CONFIG_OS:
+		if (M.time > M.next_time) {
+			// Settings mode timed out. Change to to idle mode.
+			M.md = C::MD_IDLE;
+		}
+		break;
+
+	case C::MD_NOMODE:
+	default:
+		M.md = C::MD_IDLE;
+		break;
+	}
+
 }
 
 /**
  * This is the second step when in idle mode. Read set, up, down and is
  * (installation settings) switches.
  */
-inline void idle() {
-	// Reset servo when switching from tow to idle mode.
-	if (M.md != C::MD_IDLE) {
-		M.md = C::MD_IDLE;
-		M.servo.reset();
-	}
-
-	// Check switches...
-	if (chk_bits(M.sw, C::SW_IS | C::SW_ST)) {
-		// Set switch or (viritual) installation settings switch.
-		// If activated, enter configuration mode.
-		config();
-	} else if (chk_bits(M.sw, C::SW_UP)) {
+inline void idle_mode() {
+	if (chk_bits(M.sw, C::SW_UP)) {
 		// Increase throttle
 		M.servo.pos += min(255 - M.servo.pos, MAN_THROTTLE_STEP);
 		M.servo.set();
@@ -194,76 +269,59 @@ inline void idle() {
  * position based on tachometer values. Also check for drum overspeed, drum 
  * tachometer fault and pump tachometer fault.
  */
-inline void tow() {
+inline void tow_mode() {
 	using namespace P;
-
-	// Switching to tow mode. Prepare towing.
-	if (M.md != C::MD_TOWING) {
-		// Reset tachometer errors each time tow mode is entered.
-		set_bits(false, M.err, C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
-
-		// Reset servo and prohibit tow mode if oil temperature limit exceeded.
-		if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
-			M.servo.reset();
-			return;
-		}
-		M.md = C::MD_TOWING; // All right to switch to tow mode.
-		M.pid.reset(); // Reset PID-controller to avoid servo glitches.
-		delay (GEAR_ENGAGE_DELAY); // Wait for automatic tranmission to enagage.
-	}
 
 	// Update tachometer zero-speed counters. Used for error detection.
 	M.pump_err_cnt = (M.sensors.pump_speed_raw == 0) ? M.pump_err_cnt + 1 : 0;
 	M.drum_err_cnt = (M.sensors.drum_speed_raw == 0) ? M.drum_err_cnt + 1 : 0;
 
-	// Check overspeeds and tachometer error conditions.
+	// Reset drum overspeed flag...
+	set_bits(false, M.err, C::ERR_DRUM_MAX);
+
+	// Check over speeds and tachometer error conditions.
 	if (M.sensors.drum_speed > params[I_DRUM_SPD].val) {
 		// Drum overspeed!
 		set_bits(true, M.err, C::ERR_DRUM_MAX);
 
-	} else {
-		// No drum overspeed...
-		set_bits(false, M.err, C::ERR_DRUM_MAX);
-
-		// Check drum tachometer error condition. Will be reset only when re-entering tow mode.
-		set_bits(
-				(M.drum_err_cnt > TACH1_ERR_COUNT)
-						&& (M.servo.pos > TACH1_ERR_SERVO_TRESHOLD), M.err,
-				C::ERR_DRUM_SENSOR);
-
-		// Check pump tachometer error condition. Will be reset only when re-entering tow mode.
-		set_bits(M.pump_err_cnt > TACH0_ERR_COUNT, M.err, C::ERR_PUMP_SENSOR);
-	}
-
-	// Update servo position. Setpoint may be overriden in case of errors. 
-	if (chk_bits(M.err, C::ERR_DRUM_MAX)) {
-		// Limit drum speed by reducing throttle by 10. Don't update PID-controller.
+		// Reduce throttle to limit drum speed. Don't update PID-controller.
 		M.servo.pos -= min(M.servo.pos, 10);
 
-	} else if (chk_bits(M.err, C::ERR_PUMP_SENSOR | C::ERR_DRUM_SENSOR)) {
-		// Pump or drum tachometer seems out of order. Release throttle.
+	} else if ((M.drum_err_cnt > TACH1_ERR_COUNT)
+			&& (M.servo.pos > TACH1_ERR_SERVO_TRESHOLD)) {
+		// Drum tachometer zero-speed fault condition. Can be reset only by re-enter tow mode.
+		set_bits(true, M.err, C::ERR_DRUM_SENSOR);
+
+		// Release throttle.
+		M.servo.pos = 0;
+
+	} else if (M.pump_err_cnt > TACH0_ERR_COUNT) {
+		// Pump tachometer fault condition. Can be reset only by re-enter tow mode.
+		set_bits(true, M.err, C::ERR_PUMP_SENSOR);
+
+		// Release throttle.
 		M.servo.pos = 0;
 
 	} else if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
-		// Oil temperature too high. Finish towing at lowest pump speed.
+		// Oil temperature too high. Reduce pump speed to decrease further heat generation.
 		M.pid.setpoint = (byte) params[I_PUMP_RPM].low;
 		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
 	} else {
-		// No errors. Update PID-controller. Set pump setpoint (possibly previously 
-		// changed due to an error condition).
+		// No errors. Update PID-controller. Set pump setpoint (which may have been previously
+		// changed due to a fault condition).
 		M.pid.setpoint = (byte) params[I_PUMP_RPM].val;
 		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
 	}
 
-	// Position servo.
+	// Update servo position.
 	M.servo.set();
 
 }
 
 /**
- * This is the third and last step. Read pressure, temperature and serial data.
+ * This is the third and last step. Read pressure, temperature and serial data and update display.
  */
 inline void finish() {
 	using namespace P;
@@ -278,24 +336,28 @@ inline void finish() {
 
 	// Read serial command
 	rx_cmd = (Serial.available()) ? (byte) Serial.read() : C::CM_NOCMD;
-	if (rx_cmd != C::CM_NOCMD) {
-		lcd.print("\x02\x0E");
-		lcd.print("R " + rx_cmd);
-	}
+	//if (rx_cmd != C::CM_NOCMD) {
+	//	lcd.print("\x02\x4E");
+	//	lcd.print(rx_cmd+48); // Add 48 to get correct ascii.
+	//}
 
 	// Read switches.
+	set_bits((Pins::NEUTRAL_SW.read() == LOW), M.sw, C::SW_NE);
 	set_bits((Pins::CONFIG_ST_SW.read() == LOW || rx_cmd == C::CM_SET), M.sw,
 			C::SW_ST);
 	set_bits((Pins::CONFIG_UP_SW.read() == LOW || rx_cmd == C::CM_UP), M.sw,
 			C::SW_UP);
 	set_bits((Pins::CONFIG_DN_SW.read() == LOW || rx_cmd == C::CM_DOWN), M.sw,
 			C::SW_DN);
-	set_bits((rx_cmd == C::CM_GET), M.sw, C::SW_GT);
 	set_bits((rx_cmd == C::CM_CONF), M.sw, C::SW_IS);
+	set_bits((rx_cmd == C::CM_SETP), M.sw, C::SW_SP);
 
 	// Transmit sample to Serial if requested.
-	if (chk_bits(M.sw, C::SW_GT)) {
+	if (rx_cmd == C::CM_GET) {
+		set_bits(true, M.sw, C::SW_GT);
 		M.sensors.transmit(M.md, M.time);
+	} else {
+		set_bits(false, M.sw, C::SW_GT);
 	}
 
 	//
@@ -318,28 +380,59 @@ inline void finish() {
 	// Prepare text (sprintfbuffer) to update lcd.
 	if (mode_change) {
 		// Mode has changed. Update "background" static text.
-		if (M.md == C::MD_IDLE) {
+		switch (M.md) {
+		case C::MD_CONFIG_IS:
+		case C::MD_CONFIG_OS:
+			lcd.print(LCDStrings::MSG_CONFIG);
+			break;
+
+		case C::MD_IDLE:
 			lcd.print(LCDStrings::MSG_IDLE);
-		} else {
+			break;
+
+		case C::MD_TOWING:
 			lcd.print(LCDStrings::MSG_TOWING);
+			break;
+
+		case C::MD_STARTUP:
+		case C::MD_NOMODE:
+		default:
+			break;
 		}
-		// Delay to prevent messed up lcd character.
+
+		// Delay to prevent messed up lcd display.
 		delay(5);
+
 	} else {
 		// Mode unchanged. Update dynamic text (values) only.
-		if (M.md == C::MD_IDLE) {
+		switch (M.md) {
+		case C::MD_CONFIG_IS:
+		case C::MD_CONFIG_OS:
+			// TODO
+			break;
+
+		case C::MD_IDLE:
 			snprintf(sprintfbuffer, sizeof(sprintfbuffer), prn_format,
 					params[I_OIL_HI].get_map(M.sensors.temp),
 					M.servo.pos * 100 / 255);
-		} else {
+			break;
+
+		case C::MD_TOWING:
 			snprintf(sprintfbuffer, sizeof(sprintfbuffer), prn_format,
 					params[I_PUMP_RPM].get_map(M.sensors.pump_speed),
 					M.servo.pos * 100 / 255);
+			break;
+
+		case C::MD_STARTUP:
+		case C::MD_NOMODE:
+		default:
+			break;
 		}
+
 		lcd.print(sprintfbuffer);
 	}
 
-	// Update lcd. Errors are displayed in a priority. 
+	// Update lcd. Errors are displayed in a priority.
 	lcd.print("\x02\x15"); // Move to row 2
 	if (chk_bits(M.err, C::ERR_PUMP_SENSOR)) {
 		lcd.print(LCDStrings::ERR_TACH0);
@@ -385,8 +478,8 @@ void config() {
 	M.servo.reset();
 	M.servo.detach();
 
-	// Set parameter array index to last position of either installation or 
-	// operating parameters. Will wrap round from last to to first index in first 
+	// Set parameter array index to last position of either installation or
+	// operating parameters. Will wrap round from last to to first index in first
 	// loop.
 	if (chk_bits(M.sw, C::SW_IS)) {
 		M.md = C::MD_CONFIG_IS;
@@ -397,9 +490,9 @@ void config() {
 	}
 
 	// Print lcd background (static) text.
-	lcd.print(LCDStrings::MSG_CONFIG);
+	//lcd.print(LCDStrings::MSG_CONFIG);
 
-	// Trigger display to update. Will casue parameter index i wrap to first.
+	// Trigger display to update. Will cause parameter index i wrap to first.
 	set_bits(true, M.sw, C::SW_ST);
 
 	while (millis() < exit_time) {
@@ -488,7 +581,7 @@ void set_bits(boolean set, byte& bitfield, byte bitmask) {
 }
 
 /**
- * Returns true if at least one bit in bitfield are active in in bitmask. 
+ * Returns true if at least one bit in bitfield is active in in bitmask. 
  * 
  * @param byte Bits to look for in bitmask.
  * @param byte Bits to compare bitfield with.
