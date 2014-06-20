@@ -302,7 +302,7 @@ struct SensorsState {
    * values. 
    * 
    * For example, if a tachometer has counted [126, 127] the raw speed value is
-   * even values like e.g. [252, 254]. The low pass filterd speed value may 
+   * even values like e.g. [252, 254]. The low pass filtered speed value may
    * however also contain odd numbers [253, 253].
    * 
    * Also see http://www.edn.com/design/systems-design/4320010/A-simple-software-lowpass-filter-suits-embedded-system-applications
