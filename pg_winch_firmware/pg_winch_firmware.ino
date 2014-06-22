@@ -50,7 +50,7 @@ struct MachineState {
 	byte drum_err_cnt;
 
 	unsigned long time;
-	unsigned long next_time;
+	unsigned long mark_time;
 } M;
 
 // Some other globals
@@ -101,7 +101,7 @@ void setup() {
 	// Go into installation configuration mode if set switch is pressed.
 	if ((Pins::CONFIG_ST_SW.read() == LOW)) {
 		set_bits(true, M.sw, C::SW_IS);
-		config();
+		config_mode();
 	}
 
 	// Prepare I2C temp sensor
@@ -128,12 +128,19 @@ void setup() {
 void loop() {
 
 	// Loop until timeout
-	while (M.next_time > M.time) {
+	do {
 		M.time = millis(); // Only one call to millis()
-	}
+	} while (M.mark_time > M.time);
 
-	// Start phase. 
+
+    // Read inputs (except tachometer)
+    read_switches();
+
+	// Select mode. 
 	mode_select();
+	
+    // Read tachometer inputs.
+	M.sensors.tachometer_read();
 
 	switch (M.md) {
 	case C::MD_IDLE:
@@ -146,7 +153,7 @@ void loop() {
 
 	case C::MD_CONFIG_IS:
 	case C::MD_CONFIG_OS:
-		config();
+		config_mode();
 		break;
 
 	case C::MD_STARTUP:
@@ -158,44 +165,82 @@ void loop() {
 	// Finish phase
 	finish();
 
-	M.next_time = M.time + T_SAMPLE;
-
 }
+
+
+/**
+ * Reads digital inputs, check serial for commands and updates machine state accordingly.   
+ * Does not read tachometers.
+ */
+inline void read_switches() {
+	byte rx_cmd; // Serial command byte
+
+	// Read from serial to get any pending commands.
+	rx_cmd = (Serial.available()) ? (byte) Serial.read() : C::CM_NOCMD;
+	if (rx_cmd > C::CM__LAST) {
+        rx_cmd = C::CM_NOCMD;
+    }
+    
+	
+	//if (rx_cmd != C::CM_NOCMD) {
+	//	lcd.print("\x02\x4E");
+	//	lcd.print(rx_cmd+48); // Add 48 to get correct ascii.
+	//}
+
+	// Read switches and update machine switch states.
+	set_bits(Pins::NEUTRAL_SW.read() == LOW, M.sw, C::SW_NE);
+	set_bits(Pins::CONFIG_ST_SW.read() == LOW || rx_cmd == C::CM_SET, M.sw, C::SW_ST);
+	set_bits(Pins::CONFIG_UP_SW.read() == LOW || rx_cmd == C::CM_UP, M.sw, C::SW_UP);
+	set_bits(Pins::CONFIG_DN_SW.read() == LOW || rx_cmd == C::CM_DOWN, M.sw, C::SW_DN);
+	set_bits(rx_cmd == C::CM_CONF, M.sw, C::SW_IS);
+	set_bits(rx_cmd == C::CM_SETP, M.sw, C::SW_SP);
+	set_bits(rx_cmd == C::CM_GET, M.sw, C::SW_GT);
+
+	// Read pressure
+	M.sensors.pres = Pins::PRESSURE.read();
+
+	// Check I2C bus error
+	set_bits(0 != I2c.read(I2C_TMP_ADDR, (uint8_t) 2), M.err, C::ERR_TWI);
+
+	// Read temperature
+	M.sensors.temp = (I2c.receive() << 8 | I2c.receive()) >> 7;
+
+	// Check temperature fault conditions
+	set_bits(M.sensors.temp > P::params[P::I_OIL_HI].val, M.err, C::ERR_TEMP_HIGH);
+	set_bits(M.sensors.temp < P::params[P::I_OIL_LO].val, M.err, C::ERR_TEMP_LOW);    
+}
+
 
 /**
  * This is the first step in each loop when running. Tachometers and neutral
  * switches are read first in the loop.
  */
 inline void mode_select() {
+	byte last_mode; // Last mode of operation	
+	
 	// Set alive pin high while working
 	Pins::ALIVE_LED.high();
 
-	// Read tachometers.
-	M.sensors.tachometer_read();
+    // Update last mode. 
+    last_mode = M.md;
 
-	// Check mode exit conditions.
+	// Check conditioins for changing mode.
 	switch (M.md) {
 	case C::MD_IDLE:
 		if (chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral.
-
-			if (chk_bits(M.sw, C::SW_IS)) {
-				// Installation settings (virtual) switch active.
+			if (chk_bits(M.sw, C::SW_ST | C::SW_IS)) {
+				// Set switch or Installation settings (virtual) switch active.
 				// Change to installation configuration mode.
-				M.md = C::MD_CONFIG_IS;
-				M.next_time = M.time;
+				M.md = (chk_bits(M.sw, C::SW_ST)) ? C::MD_CONFIG_OS : C::MD_CONFIG_IS;
 
-			} else if (chk_bits(M.sw, C::SW_ST)) {
-				// Set switch active.
-				// Change to operation configuration mode.
-				M.md = C::MD_CONFIG_OS;
-				M.next_time = M.time;
-
-			}
+				// Reset and detach servo.
+            	M.servo.reset();
+            	M.servo.detach();
+            }			    
 
 		} else {
 			// Gear engaged.
-
 			if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
 				// Oil temperature limit is exceeded. Stay in idle mode.
 				M.servo.reset();
@@ -210,15 +255,11 @@ inline void mode_select() {
 				// Reset PID-controller to avoid servo glitches.
 				M.pid.reset();
 
-				// Schedule next sample
-				M.next_time = M.time + T_SAMPLE;
-
 				// Wait for automatic transmission to engage.
 				delay(GEAR_ENGAGE_DELAY);
 			}
 
 		}
-
 		break;
 
 	case C::MD_TOWING:
@@ -231,18 +272,52 @@ inline void mode_select() {
 
 	case C::MD_CONFIG_IS:
 	case C::MD_CONFIG_OS:
-		if (M.time - M.next_time > CONF_TIMEOUT) {
+		if (M.time - M.mark_time >= CONF_TIMEOUT) {
 			// Settings mode timed out. Change to to idle mode.
 			M.md = C::MD_IDLE;
+			
+			// Reconnect servo
+        	M.servo.attach(Pins::SERVO.no);
 		}
 		break;
 
 	case C::MD_NOMODE:
 	default:
 		M.md = C::MD_IDLE;
-		break;
-	}
 
+		// Reconnect servo
+    	M.servo.attach(Pins::SERVO.no);
+		break;
+		
+	}
+	
+	
+    // Update lcd background if mode changes
+	if (M.md!=last_mode) {
+        switch (M.md) {
+        case C::MD_IDLE:
+            lcd.print(LCDStrings::MSG_IDLE);
+            break;
+            
+        case C::MD_TOWING:
+			lcd.print(LCDStrings::MSG_TOWING);
+            break;
+            
+        case C::MD_CONFIG_OS:
+        case C::MD_CONFIG_IS:
+			lcd.print(LCDStrings::MSG_CONFIG);        
+            break;
+            
+		case C::MD_STARTUP:
+		case C::MD_NOMODE:
+		default:
+			break;
+        }
+		// Delay to prevent messed up lcd display.
+		delay(5);
+
+    }
+	
 }
 
 /**
@@ -261,7 +336,7 @@ inline void idle_mode() {
 	}
 
 	// Schedule next sample
-	M.next_time = M.time + T_SAMPLE;
+	M.mark_time = M.time + T_SAMPLE;
 }
 
 /**
@@ -319,7 +394,7 @@ inline void tow_mode() {
 	M.servo.set();
 
 	// Schedule next sample
-	M.next_time = M.time + T_SAMPLE;
+	M.mark_time = M.time + T_SAMPLE;
 }
 
 /**
@@ -327,112 +402,43 @@ inline void tow_mode() {
  */
 inline void finish() {
 	using namespace P;
-	static byte last_mode; // Last mode of operation
-	boolean mode_change; // Flag when changed mode of operation
-	byte rx_cmd; // Serial command byte
+	//static byte last_mode; // Last mode of operation
+	//byte rx_cmd; // Serial command byte
 	const char prn_format[] = "\x02\x33%4.0d" "\x02\x48%3.0d"; // Print format string
 
-	// Check if mode of operation has changed to update lcd.
-	mode_change = (last_mode != M.md);
-	last_mode = M.md;
-
-	// Read serial command
-	rx_cmd = (Serial.available()) ? (byte) Serial.read() : C::CM_NOCMD;
-	//if (rx_cmd != C::CM_NOCMD) {
-	//	lcd.print("\x02\x4E");
-	//	lcd.print(rx_cmd+48); // Add 48 to get correct ascii.
-	//}
-
-	// Read switches.
-	set_bits((Pins::NEUTRAL_SW.read() == LOW), M.sw, C::SW_NE);
-	set_bits((Pins::CONFIG_ST_SW.read() == LOW || rx_cmd == C::CM_SET), M.sw,
-			C::SW_ST);
-	set_bits((Pins::CONFIG_UP_SW.read() == LOW || rx_cmd == C::CM_UP), M.sw,
-			C::SW_UP);
-	set_bits((Pins::CONFIG_DN_SW.read() == LOW || rx_cmd == C::CM_DOWN), M.sw,
-			C::SW_DN);
-	set_bits((rx_cmd == C::CM_CONF), M.sw, C::SW_IS);
-	set_bits((rx_cmd == C::CM_SETP), M.sw, C::SW_SP);
-
 	// Transmit sample to Serial if requested.
-	if (rx_cmd == C::CM_GET) {
-		set_bits(true, M.sw, C::SW_GT);
+	if (chk_bits(M.sw, C::SW_GT)) {
 		M.sensors.transmit(M.md, M.time);
-	} else {
-		set_bits(false, M.sw, C::SW_GT);
 	}
 
-	//
-	// Read time uncritical sensors.
-	//
+	// Prepare text (sprintfbuffer) to update displayed lcd values.
+	switch (M.md) {
+	case C::MD_CONFIG_IS:
+	case C::MD_CONFIG_OS:
+		// TODO
+		break;
 
-	// Read pressure
-	M.sensors.pres = Pins::PRESSURE.read();
+	case C::MD_IDLE:
+		snprintf(sprintfbuffer, sizeof(sprintfbuffer), prn_format,
+				params[I_OIL_HI].get_map(M.sensors.temp),
+				M.servo.pos * 100 / 255);
+		break;
 
-	// Check I2C bus error
-	set_bits(0 != I2c.read(I2C_TMP_ADDR, (uint8_t) 2), M.err, C::ERR_TWI);
+	case C::MD_TOWING:
+		snprintf(sprintfbuffer, sizeof(sprintfbuffer), prn_format,
+				params[I_PUMP_RPM].get_map(M.sensors.pump_speed),
+				M.servo.pos * 100 / 255);
+		break;
 
-	// Read temperature
-	M.sensors.temp = (I2c.receive() << 8 | I2c.receive()) >> 7;
-
-	// Check temperature fault conditions
-	set_bits(M.sensors.temp > params[I_OIL_HI].val, M.err, C::ERR_TEMP_HIGH);
-	set_bits(M.sensors.temp < params[I_OIL_LO].val, M.err, C::ERR_TEMP_LOW);
-
-	// Prepare text (sprintfbuffer) to update lcd.
-	if (mode_change) {
-		// Mode has changed. Update "background" static text.
-		switch (M.md) {
-		case C::MD_CONFIG_IS:
-		case C::MD_CONFIG_OS:
-			lcd.print(LCDStrings::MSG_CONFIG);
-			break;
-
-		case C::MD_IDLE:
-			lcd.print(LCDStrings::MSG_IDLE);
-			break;
-
-		case C::MD_TOWING:
-			lcd.print(LCDStrings::MSG_TOWING);
-			break;
-
-		case C::MD_STARTUP:
-		case C::MD_NOMODE:
-		default:
-			break;
-		}
-
-		// Delay to prevent messed up lcd display.
-		delay(5);
-
-	} else {
-		// Mode unchanged. Update dynamic text (values) only.
-		switch (M.md) {
-		case C::MD_CONFIG_IS:
-		case C::MD_CONFIG_OS:
-			// TODO
-			break;
-
-		case C::MD_IDLE:
-			snprintf(sprintfbuffer, sizeof(sprintfbuffer), prn_format,
-					params[I_OIL_HI].get_map(M.sensors.temp),
-					M.servo.pos * 100 / 255);
-			break;
-
-		case C::MD_TOWING:
-			snprintf(sprintfbuffer, sizeof(sprintfbuffer), prn_format,
-					params[I_PUMP_RPM].get_map(M.sensors.pump_speed),
-					M.servo.pos * 100 / 255);
-			break;
-
-		case C::MD_STARTUP:
-		case C::MD_NOMODE:
-		default:
-			break;
-		}
-
-		lcd.print(sprintfbuffer);
+	case C::MD_STARTUP:
+	case C::MD_NOMODE:
+	default:
+        sprintfbuffer[0] = 0; // Print null character
+		break;
 	}
+
+	lcd.print(sprintfbuffer);
+
 
 	// Update lcd. Errors are displayed in a priority.
 	lcd.print("\x02\x15"); // Move to row 2
@@ -466,104 +472,77 @@ inline void finish() {
 /**
  * Configuration mode. 
  */
-void config() {
+void config_mode() {
 	using namespace P;
 	// This is the parameter namespace.
 
-	//  char descr[21];
-	byte rx_buf[4]; // Serial read buffer. Bytes; 0:command, 1:parameter index, 2+3:parameter value bytes (big endian),
+	byte rx_buf[3]; // Serial read buffer. Bytes; 0:parameter index, 1+2:parameter value bytes (big endian),
 	char rx_len; // Number of byte read by Serial.readBuffer(). 
-	byte i; // Parameter array index.
-	unsigned long exit_time = -1; // Set timeout. Don't timeout on first loop.
+	static byte i = 0; // Parameter array index.
 
-	// Reset and detach servo.
-	M.servo.reset();
-	M.servo.detach();
 
-	// Set parameter array index to last position of either installation or
-	// operating parameters. Will wrap round from last to to first index in first
-	// loop.
-	if (chk_bits(M.sw, C::SW_IS)) {
-		M.md = C::MD_CONFIG_IS;
-		i = INST_PARAM_END;
-	} else {
-		M.md = C::MD_CONFIG_OS;
-		i = OPER_PARAM_END;
-	}
-
-	// Print lcd background (static) text.
-	//lcd.print(LCDStrings::MSG_CONFIG);
-
-	// Trigger display to update. Will cause parameter index i wrap to first.
-	set_bits(true, M.sw, C::SW_ST);
-
-	while (millis() < exit_time) {
-
-		if (chk_bits(M.sw, C::SW_ST)) { // Select next parameter.
-			if (i == OPER_PARAM_END) {
-				i = 0;
-			} else if (i == INST_PARAM_END) {
-				i = OPER_PARAM_END + 1;
-			} else {
-				i++;
-			}
-
-		} else if (chk_bits(M.sw, C::SW_UP)) { // Increase parameter value.
-			params[i].increase();
-
-		} else if (chk_bits(M.sw, C::SW_DN)) { // Decrease parameter value.
-			params[i].decrease();
-
-		} else if (chk_bits(M.sw, C::SW_SP) && rx_buf[1] <= INST_PARAM_END) { // Set parameter value from serial data.
-			params[rx_buf[1]].set((int) rx_buf[2] << 8 | (int) rx_buf[3]);
+	if (chk_bits(M.sw, C::SW_ST)) { 
+        // Select next parameter.
+		if (M.md == C::MD_CONFIG_OS && i >= OPER_PARAM_END) {
+			i = 0;
+		} else if (M.md == C::MD_CONFIG_IS && i >= INST_PARAM_END) {
+			i = OPER_PARAM_END + 1;
+		} else {
+			i++;
 		}
 
-		// Update lcd, transmit parameter to serial and postpone timeout if anything 
-		// changes.
-		if (chk_bits(M.sw, C::SW_ST | C::SW_UP | C::SW_DN | C::SW_SP)) {
-			snprintf(sprintfbuffer, sizeof(sprintfbuffer), "\x02\x12" "%2d)" // Parameter index at lcd pos 19
-							"%-20s"// Description on row 2
-							"\x02\x3D" "%6d",// Value at lcd pos 61 
-			i + 1, params[i].descr, params[i].get_map(params[i].val));
-			lcd.print(sprintfbuffer);
+	} else if (chk_bits(M.sw, C::SW_UP)) { 
+        // Increase parameter value.
+		params[i].increase();
 
-			// Transmit parameter through serial.
-			params[i].transmit(M.md, i);
+	} else if (chk_bits(M.sw, C::SW_DN)) {
+	    // Decrease parameter value.
+		params[i].decrease();
 
-			// Wait until buttons are all released.
-			while (Pins::CONFIG_ST_SW.read() == LOW
-					|| Pins::CONFIG_UP_SW.read() == LOW
-					|| Pins::CONFIG_DN_SW.read() == LOW) {
-			}
-
-			// Delay to avoid contact bounce
-			delay(10);
-
-			// Postpone timeout
-			exit_time = millis() + CONF_TIMEOUT;
-		}
-
+	} else if (chk_bits(M.sw, C::SW_SP)) {
+        // Wait for serial data
+		delay(50);
+        		    
 		// Recieve serial data. Reset command byte (first byte in buffer) to 
 		// C::CM_NOCMD if zero bytes received or if bytes are invalid.
-		rx_len = Serial.readBytes((char*) rx_buf, 4);
-		if (rx_len <= 0 || (rx_buf[0] > C::CM__LAST)
-				|| (rx_buf[0] == C::CM_SETP && rx_len != 4)) {
-			rx_buf[0] = C::CM_NOCMD;
-		}
+		rx_len = Serial.readBytes((char*) rx_buf, 3);
+		if (rx_len == 3 && rx_buf[0] <= INST_PARAM_END) {
+    	    // Set parameter value from serial data.
+    		params[rx_buf[0]].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);	
+		} 	    		    
 
-		// Check buttons.
-		set_bits((rx_buf[0] == C::CM_SETP), M.sw, C::SW_SP);
-		set_bits((Pins::CONFIG_ST_SW.read() == LOW || rx_buf[0] == C::CM_SET),
-				M.sw, C::SW_ST);
-		set_bits((Pins::CONFIG_UP_SW.read() == LOW || rx_buf[0] == C::CM_UP),
-				M.sw, C::SW_UP);
-		set_bits((Pins::CONFIG_DN_SW.read() == LOW || rx_buf[0] == C::CM_DOWN),
-				M.sw, C::SW_DN);
 	}
 
-	// Reattach servo
-	M.servo.attach(Pins::SERVO.no);
-	M.servo.set();
+	// Update lcd, transmit parameter to serial and postpone timeout if anything 
+	// changes.
+	if (chk_bits(M.sw, C::SW_ST | C::SW_UP | C::SW_DN | C::SW_SP)) {	    
+	    // Update values on the lcd.
+		snprintf(sprintfbuffer, sizeof(sprintfbuffer), "\x02\x12" "%2d)" // Parameter index at lcd pos 19
+						"%-20s"// Description on row 2
+						"\x02\x3D" "%6d",// Value at lcd pos 61 
+		i + 1, params[i].descr, params[i].get_map(params[i].val));
+		lcd.print(sprintfbuffer);
+
+		// Transmit parameter through serial.
+		params[i].transmit(M.md, i);
+
+		// Wait until buttons are all released.
+		while (Pins::CONFIG_ST_SW.read() == LOW
+				|| Pins::CONFIG_UP_SW.read() == LOW
+				|| Pins::CONFIG_DN_SW.read() == LOW) {
+		}
+
+		// Delay to avoid contact bounce
+		delay(10);
+
+        // Mark time when changing parameter. 
+		M.mark_time = millis();
+
+		// Postpone timeout
+		//exit_time = millis() + CONF_TIMEOUT;
+	}
+
+
 }
 
 /**
