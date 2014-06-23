@@ -99,9 +99,6 @@ void setup() {
 	attachInterrupt(0, pump_tic, CHANGE);
 	attachInterrupt(1, drum_tic, RISING);
 
-	// Flag startup mode.
-	M.md = C::MD_STARTUP;
-
 	// Now enter main loop...
 }
 
@@ -471,11 +468,9 @@ void config_mode() {
 				|| Pins::DN_SW.read() == LOW) {
 		}
 
-		// Delay to avoid contact bounce
-		delay(10);
-
-		// Mark time when changing parameter.
-		M.mark_time = millis();
+		// Mark time when changing parameter. Will pause 100ms, then timeout
+		// after CONF_TIMEOUT ms.  
+		M.mark_time = millis() + 100;
 	}
 
 }
