@@ -24,7 +24,7 @@
 // Delays and times 
 const byte T_SAMPLE = 200; // Sample period 0-255ms.
 const word CONF_TIMEOUT = 6000; // Timeout in ms for exiting config mode.
-const int BUS_TIMEOUT = 50; // Timeout in ms for I2C and serial data.
+const int READ_TIMEOUT = 100; // Timeout in ms for I2C and serial data.
 const unsigned int GEAR_ENGAGE_DELAY = 2000; // Delay in milliseconds to let automatic gearbox engage.
 
 // Pulses per turn for pump and drum tachometers

@@ -72,11 +72,11 @@ void setup() {
 
 	// Start serial for RN-42 bluetooth module.
 	Serial.begin(115200);
-	Serial.setTimeout(BUS_TIMEOUT);
+	Serial.setTimeout(READ_TIMEOUT);
 
 	// Start I2C 
 	I2c.begin();
-	I2c.timeOut(BUS_TIMEOUT);
+	I2c.timeOut(READ_TIMEOUT);
 
 	// Load parameters stored in flash memory
 	for (byte i = 0; i <= P::INST_PARAM_END; i++) {
@@ -411,8 +411,9 @@ void config_mode() {
 	// Use namespace P for parameters.
 	using namespace P;
 
-	byte rx_buf[3]; // Serial read buffer. Bytes; 0:parameter index,
-					// 1+2:parameter value bytes (big endian),
+	const byte buf_len = 3;
+	byte rx_buf[buf_len]; // Serial read buffer. Bytes; 0:parameter index,
+						  // 1+2:parameter value bytes (big endian).
 	char rx_len; // Number of byte read by Serial.readBuffer().
 	static byte i = 0; // Parameter array index.
 
@@ -435,13 +436,10 @@ void config_mode() {
 		params[i].decrease();
 
 	} else if (chk_bits(M.sw, C::SW_SP)) {
-		// Wait for serial data
-		delay(50);
-
 		// Recieve serial data. Reset command byte (first byte in buffer) to
 		// C::CM_NOCMD if zero bytes received or if bytes are invalid.
-		rx_len = Serial.readBytes((char*) rx_buf, 3);
-		if (rx_len == 3 && rx_buf[0] <= INST_PARAM_END) {
+		rx_len = Serial.readBytes((char*) rx_buf, buf_len);
+		if (rx_len == buf_len && rx_buf[0] <= INST_PARAM_END) {
 			// Set parameter value from serial data.
 			params[rx_buf[0]].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);
 		}
