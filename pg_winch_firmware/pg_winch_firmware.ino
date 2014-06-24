@@ -418,12 +418,22 @@ void config_mode() {
 
 	if (chk_bits(M.sw, C::SW_SE)) {
 		// Select next parameter.
-		if (M.md == C::MD_CONFIG_OS && i >= OPER_PARAM_END) {
-			i = 0;
-		} else if (M.md == C::MD_CONFIG_IS && i >= INST_PARAM_END) {
-			i = OPER_PARAM_END + 1;
+		if (M.md == C::MD_CONFIG_OS) {
+			// In operation settings mode
+			if (i >= OPER_PARAM_END) {
+				i = 0;
+			} else {
+				i++;
+			}
+
 		} else {
-			i++;
+			// In installation settings mode
+			if (i >= INST_PARAM_END || i <= OPER_PARAM_END) {
+				i = OPER_PARAM_END + 1;
+			} else {
+				i++;
+			}
+
 		}
 
 	} else if (chk_bits(M.sw, C::SW_UP)) {
@@ -435,7 +445,7 @@ void config_mode() {
 		params[i].decrease();
 
 	} else if (chk_bits(M.sw, C::SW_SP)) {
-		// Select or select and set parameter.
+		// Using bluetooth connection; select or select and set parameter.
 		rx_len = Serial.readBytes((char*) rx_buf, buf_len);
 		if (rx_len > 0 && rx_buf[0] <= INST_PARAM_END) {
 			// Parameter index received.
@@ -444,6 +454,15 @@ void config_mode() {
 				// Set parameter value received. Update parameter.
 				params[i].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);
 			}
+
+		} else if (i < INST_PARAM_END) {
+			// No index specified. Select next.
+			i++;
+
+		} else {
+			// No index specified. Select next (wrap to first).
+			i = 0;
+
 		}
 
 	}
