@@ -94,6 +94,9 @@ const char ERR_TACH1[] = "!Trumgivarefel";
 const char VAL_FORMAT[] = "\x02\x15%s" // Error message on row 2
 				"\x02\x33%4.0d"// Value on row 3
 				"\x02\x48%3.0d";// Value on row 4
+const char PRM_FORMAT[] = "\x02\x12%2d)" // Parameter index at row 1, col 18
+				"%-20s"// Parameter description at row 2
+				"\x02\x3D%6d";// Parameter value at row 4
 }
 
 //
@@ -124,7 +127,7 @@ Parameter params[] = {
 // {1, "Pumpvarv", 16, 6, 36, 1, 6 / T_SAMPLE / PPT_PUMP * 30000, 36 / T_SAMPLE / PPT_PUMP * 30000},
 		{ 0, "Max linhastighet", 50, 20, 70, 1, 28, 100 }, //
 		{ 1, "Pumpvarv", 16, 6, 36, 1, 90, 540 }, //
-		{ 2, "Max oljetemp.", 140, 100, 180, 2, 50,	90 }, //
+		{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
 		{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
 		{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
 		{ 5, "Servo max-puls", 2140, 600, 2400, 20, 600, 2400 }, //
@@ -134,7 +137,7 @@ Parameter params[] = {
 		{ 9, "PID d", 7, 0, 32, 1, 0, 32 }, //
 		{ 10, "PID k", -17, -32, 32, 1, -32, 32 }, //
 		{ 11, "PID i gr\xE1ns", 95, 0, 255, 1, 0, 255 } //
-	};
+};
 
 }
 

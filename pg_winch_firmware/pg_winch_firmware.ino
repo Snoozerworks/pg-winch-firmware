@@ -440,8 +440,9 @@ void config_mode() {
 		// C::CM_NOCMD if zero bytes received or if bytes are invalid.
 		rx_len = Serial.readBytes((char*) rx_buf, buf_len);
 		if (rx_len == buf_len && rx_buf[0] <= INST_PARAM_END) {
+			i = rx_buf[0];
 			// Set parameter value from serial data.
-			params[rx_buf[0]].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);
+			params[i].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);
 		}
 
 	}
@@ -450,12 +451,8 @@ void config_mode() {
 	// changes.
 	if (chk_bits(M.sw, C::SW_ST | C::SW_UP | C::SW_DN | C::SW_SP)) {
 		// Update values on the lcd.
-		// Parameter index at lcd pos 18.
-		// Description on row 2.
-		// Value at lcd pos 61.
-		snprintf(sprintfbuffer, sizeof(sprintfbuffer), "\x02\x12" "%2d)"
-				"%-20s" "\x02\x3D" "%6d", i + 1, params[i].descr,
-				params[i].get_map(params[i].val));
+		snprintf(sprintfbuffer, sizeof(sprintfbuffer), LCDStrings::PRM_FORMAT,
+				i + 1, params[i].descr, params[i].get_map(params[i].val));
 		lcd.print(sprintfbuffer);
 
 		// Transmit parameter through serial.
