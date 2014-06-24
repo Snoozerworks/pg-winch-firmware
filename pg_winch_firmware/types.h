@@ -99,17 +99,16 @@ const byte MD_TOWING = 5; // In towing operation (lever not in neutral)
 
 // Commands
 const byte CM_NOCMD = 0; // No command
-const byte CM_CONF = 1; // Request mode change to Installation Settings
-const byte CM_SET = 2; // Set switch active
-const byte CM_UP = 3; // Up switch active
-const byte CM_DOWN = 4; // Down switch active
-const byte CM_SETP = 5; // Set parameter (viritual) switch active
-const byte CM_GET = 6; // Get sample (viritual) switch active
-const byte CM__LAST = CM_GET; // Last element. Used internally only.
+const byte CM_SE = 1; // Select switch active
+const byte CM_UP = 2; // Up switch active
+const byte CM_DN = 3; // Down switch active
+const byte CM_SP = 4; // Set parameter (viritual) switch active
+const byte CM_GT = 5; // Get sample (viritual) switch active
+const byte CM__LAST = CM_GT; // Last element. Used internally only.
 
 // State of switches are saved in a structure.
 const byte SW_NE = 1; // Neutral switch
-const byte SW_ST = 2; // Set switch
+const byte SW_SE = 2; // Select switch
 const byte SW_UP = 4; // Up switch
 const byte SW_DN = 8; // Down switch
 const byte SW_SP = 16; // Set parameter (viritual) switch

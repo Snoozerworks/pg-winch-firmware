@@ -166,12 +166,11 @@ void read_switches() {
 
 	// Read switches and update machine switch states.
 	set_bits(Pins::NEUTRAL_SW.read() == LOW, M.sw, C::SW_NE);
-	set_bits(Pins::ST_SW.read() == LOW || rx_cmd == C::CM_SET, M.sw, C::SW_ST);
+	set_bits(Pins::ST_SW.read() == LOW || rx_cmd == C::CM_SE, M.sw, C::SW_SE);
 	set_bits(Pins::UP_SW.read() == LOW || rx_cmd == C::CM_UP, M.sw, C::SW_UP);
-	set_bits(Pins::DN_SW.read() == LOW || rx_cmd == C::CM_DOWN, M.sw, C::SW_DN);
-	set_bits(rx_cmd == C::CM_CONF, M.sw, C::SW_IS);
-	set_bits(rx_cmd == C::CM_SETP, M.sw, C::SW_SP);
-	set_bits(rx_cmd == C::CM_GET, M.sw, C::SW_GT);
+	set_bits(Pins::DN_SW.read() == LOW || rx_cmd == C::CM_DN, M.sw, C::SW_DN);
+	set_bits(rx_cmd == C::CM_SP, M.sw, C::SW_SP);
+	set_bits(rx_cmd == C::CM_GT, M.sw, C::SW_GT);
 
 	// Read pressure
 	M.sensors.pres = Pins::PRESSURE.read();
@@ -207,10 +206,10 @@ void mode_select() {
 	case C::MD_IDLE:
 		if (chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral.
-			if (chk_bits(M.sw, C::SW_ST | C::SW_IS)) {
-				// Set switch or Installation settings (virtual) switch active.
+			if (chk_bits(M.sw, C::SW_SE | C::SW_SP)) {
+				// Select switch or Installation settings (virtual) switch active.
 				// Change to installation configuration mode.
-				M.md = (chk_bits(M.sw, C::SW_ST)) ?
+				M.md = (chk_bits(M.sw, C::SW_SE)) ?
 						C::MD_CONFIG_OS : C::MD_CONFIG_IS;
 
 				// Reset and detach servo.
@@ -265,8 +264,8 @@ void mode_select() {
 			// Attach and reset servo position
 			M.servo.attach(Pins::SERVO.no);
 			M.servo.reset();
-		} else if (chk_bits(M.sw, C::SW_ST)) {
-			// Go into installation configuration mode if set switch is pressed.
+		} else if (chk_bits(M.sw, C::SW_SE)) {
+			// Go into installation configuration mode if select switch is pressed.
 			M.md = C::MD_CONFIG_IS;
 		}
 		break;
@@ -417,7 +416,7 @@ void config_mode() {
 	char rx_len; // Number of byte read by Serial.readBuffer().
 	static byte i = 0; // Parameter array index.
 
-	if (chk_bits(M.sw, C::SW_ST)) {
+	if (chk_bits(M.sw, C::SW_SE)) {
 		// Select next parameter.
 		if (M.md == C::MD_CONFIG_OS && i >= OPER_PARAM_END) {
 			i = 0;
@@ -436,20 +435,22 @@ void config_mode() {
 		params[i].decrease();
 
 	} else if (chk_bits(M.sw, C::SW_SP)) {
-		// Recieve serial data. Reset command byte (first byte in buffer) to
-		// C::CM_NOCMD if zero bytes received or if bytes are invalid.
+		// Select or select and set parameter.
 		rx_len = Serial.readBytes((char*) rx_buf, buf_len);
-		if (rx_len == buf_len && rx_buf[0] <= INST_PARAM_END) {
+		if (rx_len > 0 && rx_buf[0] <= INST_PARAM_END) {
+			// Parameter index received.
 			i = rx_buf[0];
-			// Set parameter value from serial data.
-			params[i].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);
+			if (rx_len == buf_len) {
+				// Set parameter value received. Update parameter.
+				params[i].set((int) rx_buf[1] << 8 | (int) rx_buf[2]);
+			}
 		}
 
 	}
 
 	// Update lcd, transmit parameter to serial and postpone timeout if anything
 	// changes.
-	if (chk_bits(M.sw, C::SW_ST | C::SW_UP | C::SW_DN | C::SW_SP)) {
+	if (chk_bits(M.sw, C::SW_SE | C::SW_UP | C::SW_DN | C::SW_SP)) {
 		// Update values on the lcd.
 		snprintf(sprintfbuffer, sizeof(sprintfbuffer), LCDStrings::PRM_FORMAT,
 				i + 1, params[i].descr, params[i].get_map(params[i].val));
