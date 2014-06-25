@@ -126,7 +126,7 @@ Parameter params[] = {
 // {0, "Max linhastighet", 36, 20, 48, 1, 20 / T_SAMPLE / PPT_DRUM * 2262, 48 / T_SAMPLE / PPT_DRUM * 2262},
 // {1, "Pumpvarv", 16, 6, 36, 1, 6 / T_SAMPLE / PPT_PUMP * 30000, 36 / T_SAMPLE / PPT_PUMP * 30000},
 		{ 0, "Max linhastighet", 50, 20, 70, 1, 28, 100 }, //
-		{ 1, "Pumpvarv", 16, 6, 36, 1, 90, 540 }, //
+		{ 1, "Pumpvarv", 13, 6, 36, 1, 90, 540 }, //
 		{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
 		{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
 		{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
