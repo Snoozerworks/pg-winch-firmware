@@ -257,16 +257,16 @@ void mode_select() {
 	case C::MD_NOMODE:
 	case C::MD_STARTUP:
 	default:
-		if (chk_bits(M.sw, C::SW_NE)) {
+		if (chk_bits(M.sw, C::SW_SE)) {
+			// Go into installation configuration mode if select switch is pressed.
+			M.md = C::MD_CONFIG_IS;
+		} else if (chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral. Reset servo and change to idle mode.
 			M.md = C::MD_IDLE;
 
 			// Attach and reset servo position
 			M.servo.attach(Pins::SERVO.no);
 			M.servo.reset();
-		} else if (chk_bits(M.sw, C::SW_SE)) {
-			// Go into installation configuration mode if select switch is pressed.
-			M.md = C::MD_CONFIG_IS;
 		}
 		break;
 
