@@ -165,10 +165,10 @@ void read_switches() {
 	//}
 
 	// Read switches and update machine switch states.
-	set_bits(Pins::NEUTRAL_SW.read() == LOW, M.sw, C::SW_NE);
-	set_bits(Pins::ST_SW.read() == LOW || rx_cmd == C::CM_SE, M.sw, C::SW_SE);
-	set_bits(Pins::UP_SW.read() == LOW || rx_cmd == C::CM_UP, M.sw, C::SW_UP);
-	set_bits(Pins::DN_SW.read() == LOW || rx_cmd == C::CM_DN, M.sw, C::SW_DN);
+	set_bits(Pins::SW_NE.read() == LOW, M.sw, C::SW_NE);
+	set_bits(Pins::SW_SE.read() == LOW || rx_cmd == C::CM_SE, M.sw, C::SW_SE);
+	set_bits(Pins::SW_UP.read() == LOW || rx_cmd == C::CM_UP, M.sw, C::SW_UP);
+	set_bits(Pins::SW_DN.read() == LOW || rx_cmd == C::CM_DN, M.sw, C::SW_DN);
 	set_bits(rx_cmd == C::CM_SP, M.sw, C::SW_SP);
 	set_bits(rx_cmd == C::CM_GT, M.sw, C::SW_GT);
 
@@ -479,8 +479,8 @@ void config_mode() {
 		params[i].transmit(M.md, i);
 
 		// Wait until buttons are all released.
-		while (Pins::ST_SW.read() == LOW || Pins::UP_SW.read() == LOW
-				|| Pins::DN_SW.read() == LOW) {
+		while (Pins::SW_SE.read() == LOW || Pins::SW_UP.read() == LOW
+				|| Pins::SW_DN.read() == LOW) {
 		}
 
 		// Mark time when changing parameter. Will pause 100ms, then timeout

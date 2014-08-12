@@ -52,10 +52,10 @@ const byte MAN_THROTTLE_STEP = 10;
 namespace Pins {
 DigitalPin TACH_PUMP(2, INPUT_PULLUP); // Pump tachometer (interrupt 0)
 DigitalPin TACH_DRUM(3, INPUT_PULLUP); // Drum tachometer (interrupt 1)
-DigitalPin NEUTRAL_SW(4, INPUT_PULLUP); // Shift lever neutral switch
-DigitalPin UP_SW(5, INPUT_PULLUP); // Configuration mode up switch
-DigitalPin DN_SW(6, INPUT_PULLUP); // Configuration mode down switch
-DigitalPin ST_SW(7, INPUT_PULLUP); // Configuration mode set switch
+DigitalPin SW_NE(4, INPUT_PULLUP); // Shift lever neutral switch
+DigitalPin SW_UP(5, INPUT_PULLUP); // Up button
+DigitalPin SW_DN(6, INPUT_PULLUP); // Down button
+DigitalPin SW_SE(7, INPUT_PULLUP); // Set button
 DigitalPin ALIVE_LED(8, OUTPUT); // High when working, low when waiting
 DigitalPin SERVO(11, OUTPUT); // Servo PWM pin
 AnaloguePin PRESSURE(A0, INPUT); // Pump pressure
