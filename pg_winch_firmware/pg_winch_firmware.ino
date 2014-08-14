@@ -7,9 +7,8 @@
 // Project files to include
 #include "types.h"
 #include "parameter.h"
-#include "MachineState.h"
-#include "ThrottleServo.h"
-#include "Controller.h"
+#include "controller.h"
+#include "throttle_servo.h"
 
 /**
  * REMINDER
@@ -26,8 +25,9 @@
  * DUN-DCE" or possibly with profile 1 "DUN-DCE" to make the arduino reset work.
  * This is done by sending the module first "$$$" to get in command mode. The
  * module shall respond with CMD. Then send "S~,4<CR>". To verify the setting
- * send "O<CR>" (O as in Oliver) and module will respond with a list of settings.
+ * send "O<CR>" (O as in Oliver) and module will repond with a list of settings.
  * Don't include the "" when sending the commands.
+ * 
  */
 
 /* This is for debugging only */
@@ -39,13 +39,24 @@
  }
  */
 
+// Machine states, servo object and controller object.
+struct MachineState {
+	byte md; // Mode of operation
+	byte sw; // Switch states  (on/off)
+	byte err; // Error states (active/inactive)
+	byte pump_err_cnt; // Pump speed error counter
+	byte drum_err_cnt; // Drum speed error counter
+	unsigned long time; // Timestamp
+	unsigned long mark_time; // Time mark
+
+	SensorsState sensors; // Sensor states (sampled values)
+	ThrottleServo servo; // Servo object
+	Controller pid; // PID controller object
+} M;
+
 // Some other globals
 char sprintfbuffer[96]; // Print buffers.
 I2C_LCD lcd(I2C_LCD_ADDR); // Initiate object for lcd.
-
-MachineState M;			// Machine state
-ThrottleServo servo;	// Servo object
-Controller pid; 		// PID controller object
 
 /**
  * Arduino entry point for program.
@@ -55,8 +66,8 @@ void setup() {
 	Pins::OUT1.high();
 	Pins::OUT2.high();
 
-	// Initialise states
-	M.mode = C::MD_STARTUP; // Flag for startup
+	// Initialize states
+	M.md = C::MD_STARTUP; // Flag for startup
 	M.mark_time = 0;
 
 	// Start serial for RN-42 bluetooth module.
@@ -102,15 +113,15 @@ void loop() {
 	} while (M.mark_time > M.time);
 
 	// Read inputs (except tachometer)
-	M.read_switches();
+	read_switches();
 
 	// Select mode. 
 	mode_select();
 
-	// Read tachometer inputs and update machine state.
-	M.read_tachometers();
+	// Read tachometer inputs.
+	M.sensors.tachometer_read();
 
-	switch (M.mode) {
+	switch (M.md) {
 	case C::MD_IDLE:
 		idle_mode();
 		break;
@@ -136,6 +147,48 @@ void loop() {
 }
 
 /**
+ * Reads digital inputs, check serial for commands and updates machine state
+ * accordingly. Does not read tachometers.
+ */
+void read_switches() {
+	byte rx_cmd; // Serial command byte
+
+	// Read from serial to get any pending commands.
+	rx_cmd = (Serial.available()) ? (byte) Serial.read() : C::CM_NOCMD;
+	if (rx_cmd > C::CM__LAST) {
+		rx_cmd = C::CM_NOCMD;
+	}
+
+	//if (rx_cmd != C::CM_NOCMD) {
+	//	lcd.print("\x02\x4E");
+	//	lcd.print(rx_cmd+48); // Add 48 to get correct ascii.
+	//}
+
+	// Read switches and update machine switch states.
+	set_bits(Pins::SW_NE.read() == LOW, M.sw, C::SW_NE);
+	set_bits(Pins::SW_SE.read() == LOW || rx_cmd == C::CM_SE, M.sw, C::SW_SE);
+	set_bits(Pins::SW_UP.read() == LOW || rx_cmd == C::CM_UP, M.sw, C::SW_UP);
+	set_bits(Pins::SW_DN.read() == LOW || rx_cmd == C::CM_DN, M.sw, C::SW_DN);
+	set_bits(rx_cmd == C::CM_SP, M.sw, C::SW_SP);
+	set_bits(rx_cmd == C::CM_GT, M.sw, C::SW_GT);
+
+	// Read pressure
+	M.sensors.pres = Pins::PRESSURE.read();
+
+	// Check I2C bus error
+	set_bits(0 != I2c.read(I2C_TMP_ADDR, (uint8_t) 2), M.err, C::ERR_TWI);
+
+	// Read temperature
+	M.sensors.temp = ((int) I2c.receive() << 8 | (int) I2c.receive()) >> 7;
+
+	// Check temperature fault conditions
+	set_bits(M.sensors.temp > P::params[P::I_OIL_HI].val, M.err,
+			C::ERR_TEMP_HIGH);
+	set_bits(M.sensors.temp < P::params[P::I_OIL_LO].val, M.err,
+			C::ERR_TEMP_LOW);
+}
+
+/**
  * This is the first step in each loop when running. Tachometers and neutral
  * switches are read first in the loop.
  */
@@ -146,37 +199,35 @@ void mode_select() {
 	Pins::ALIVE_LED.high();
 
 	// Update last mode.
-	last_mode = M.mode;
+	last_mode = M.md;
 
 	// Check conditions for changing mode.
-	switch (M.mode) {
+	switch (M.md) {
 	case C::MD_IDLE:
-		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
+		if (chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral.
-			if (MachineState::chk_bits(M.sw, C::SW_SE | C::SW_SP)) {
+			if (chk_bits(M.sw, C::SW_SE | C::SW_SP)) {
 				// Select switch or Installation settings (virtual) switch active.
 				// Change to installation configuration mode.
-				M.mode =
-						(MachineState::chk_bits(M.sw, C::SW_SE)) ?
-								C::MD_CONFIG_OS : C::MD_CONFIG_IS;
+				M.md = (chk_bits(M.sw, C::SW_SE)) ?
+						C::MD_CONFIG_OS : C::MD_CONFIG_IS;
 
 				// Reset and detach servo.
-				servo.reset();
-				servo.detach();
+				M.servo.reset();
+				M.servo.detach();
 			}
 
-		} else if (!MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
+		} else if (!chk_bits(M.err, C::ERR_TEMP_HIGH)) {
 			// Gear engaged and oil temperature not too high.
 
 			// Change to tow mode.
-			M.mode = C::MD_TOWING;
+			M.md = C::MD_TOWING;
 
 			// Reset tachometer errors before tow mode is entered.
-			M.set_bits(false, M.errors,
-					C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
+			set_bits(false, M.err, C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
 
 			// Reset PID-controller to avoid servo glitches.
-			pid.reset();
+			M.pid.reset();
 
 			// Wait for automatic transmission to engage.
 			delay(GEAR_ENGAGE_DELAY);
@@ -185,10 +236,10 @@ void mode_select() {
 		break;
 
 	case C::MD_TOWING:
-		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
+		if (chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral. Reset servo and change to idle mode.
-			M.mode = C::MD_IDLE;
-			servo.reset();
+			M.md = C::MD_IDLE;
+			M.servo.reset();
 		}
 		break;
 
@@ -196,34 +247,34 @@ void mode_select() {
 	case C::MD_CONFIG_OS:
 		if (M.time - M.mark_time >= CONF_TIMEOUT) {
 			// Settings mode timed out. Change to to idle mode.
-			M.mode = C::MD_IDLE;
+			M.md = C::MD_IDLE;
 
 			// Reconnect servo
-			servo.attach(Pins::SERVO.no);
+			M.servo.attach(Pins::SERVO.no);
 		}
 		break;
 
 	case C::MD_NOMODE:
 	case C::MD_STARTUP:
 	default:
-		if (MachineState::chk_bits(M.sw, C::SW_SE)) {
+		if (chk_bits(M.sw, C::SW_SE)) {
 			// Go into installation configuration mode if select switch is pressed.
-			M.mode = C::MD_CONFIG_IS;
-		} else if (MachineState::chk_bits(M.sw, C::SW_NE)) {
+			M.md = C::MD_CONFIG_IS;
+		} else if (chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral. Reset servo and change to idle mode.
-			M.mode = C::MD_IDLE;
+			M.md = C::MD_IDLE;
 
 			// Attach and reset servo position
-			servo.attach(Pins::SERVO.no);
-			servo.reset();
+			M.servo.attach(Pins::SERVO.no);
+			M.servo.reset();
 		}
 		break;
 
 	}
 
 	// Update lcd background if mode changes
-	if (M.mode != last_mode) {
-		switch (M.mode) {
+	if (M.md != last_mode) {
+		switch (M.md) {
 		case C::MD_IDLE:
 			lcd.print(LCDStrings::MSG_IDLE);
 			break;
@@ -257,22 +308,22 @@ void mode_select() {
 void idle_mode() {
 	using namespace P;
 
-	if (MachineState::chk_bits(M.sw, C::SW_UP)) {
+	if (chk_bits(M.sw, C::SW_UP)) {
 		// Increase throttle
-		servo.pos += min(255 - servo.pos, MAN_THROTTLE_STEP);
-		servo.set();
-	} else if (MachineState::chk_bits(M.sw, C::SW_DN)) {
+		M.servo.pos += min(255 - M.servo.pos, MAN_THROTTLE_STEP);
+		M.servo.set();
+	} else if (chk_bits(M.sw, C::SW_DN)) {
 		// Decrease throttle
-		servo.pos -= min(servo.pos, MAN_THROTTLE_STEP);
-		servo.set();
+		M.servo.pos -= min(M.servo.pos, MAN_THROTTLE_STEP);
+		M.servo.set();
 	}
 
 	// Prepare text (sprintfbuffer) to update displayed lcd values.
 	snprintf(sprintfbuffer, sizeof(sprintfbuffer), //
 			LCDStrings::VAL_FORMAT, // Format string
 			get_err_str(), // Error string
-			params[I_OIL_HI].get_map(M.temp), // Oil temperature
-			servo.pos * 100 / 255); // Servo position
+			params[I_OIL_HI].get_map(M.sensors.temp), // Oil temperature
+			M.servo.pos * 100 / 255); // Servo position
 
 	// Update lcd.
 	lcd.print(sprintfbuffer);
@@ -291,9 +342,10 @@ void tow_mode() {
 
 	// Check drum tachometer zero-speed fault. Drum speed is allowed to be
 	// zero only for a limited amount of applied throttle and samples.
-	if (M.drum_spd == 0 && servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD) {
+	if (M.sensors.drum_speed_raw == 0
+			&& M.servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD) {
 		if (M.drum_err_cnt++ > TACH_DRUM_ERR_COUNT) {
-			M.set_bits(true, M.errors, C::ERR_DRUM_SENSOR);
+			set_bits(true, M.err, C::ERR_DRUM_SENSOR);
 		}
 	} else {
 		M.drum_err_cnt = 0;
@@ -301,54 +353,54 @@ void tow_mode() {
 
 	// Check pump tachometer zero-speed fault. Drum speed is allowed to be
 	// zero only for a limited amount of samples.
-	if (M.pump_spd == 0) {
+	if (M.sensors.pump_speed_raw == 0) {
 		if (M.pump_err_cnt++ > TACH_PUMP_ERR_COUNT) {
-			M.set_bits(true, M.errors, C::ERR_PUMP_SENSOR);
+			set_bits(true, M.err, C::ERR_PUMP_SENSOR);
 		}
 	} else {
 		M.pump_err_cnt = 0;
 	}
 
 	// Check drum overspeed.
-	M.set_bits(M.drum_spd > params[I_DRUM_SPD].val, M.errors, C::ERR_DRUM_MAX);
+	set_bits(M.sensors.drum_speed > params[I_DRUM_SPD].val, M.err,
+			C::ERR_DRUM_MAX);
 
-	// Set servo position.
-	if (MachineState::chk_bits(M.errors, C::ERR_DRUM_MAX)) {
+	// Set servoposition.
+	if (chk_bits(M.err, C::ERR_DRUM_MAX)) {
 		// Drum overspeed detected.
 		// Reduce throttle to limit drum speed. Don't update PID-controller.
-		servo.pos -= min(servo.pos, 10);
+		M.servo.pos -= min(M.servo.pos, 10);
 
-	} else if (MachineState::chk_bits(M.errors,
-			C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
+	} else if (chk_bits(M.err, C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
 		// Drum or tachometer fault. Can be reset only by re-enter tow mode.
 		// Release throttle.
-		servo.pos = 0;
+		M.servo.pos = 0;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
+	} else if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
 		// Oil temperature too high. Continue to operate with minimum pump
-		// speed to minimise further heat.
-		pid.setpoint = (byte) params[I_PUMP_RPM].low;
-		servo.pos = pid.process(M.pump_spd_f, M.drum_spd_f);
+		// speed to minimize further heat.
+		M.pid.setpoint = (byte) params[I_PUMP_RPM].low;
+		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
 	} else {
 		// No errors.
 
 		// Update PID-controller. Set pump setpoint (which may have
 		// been previously changed due to a fault condition).
-		pid.setpoint = (byte) params[I_PUMP_RPM].val;
-		servo.pos = pid.process(M.pump_spd_f, M.drum_spd_f);
+		M.pid.setpoint = (byte) params[I_PUMP_RPM].val;
+		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
 	}
 
 	// Update servo position.
-	servo.set();
+	M.servo.set();
 
 	// Prepare text (sprintfbuffer) to update displayed lcd values.
 	snprintf(sprintfbuffer, sizeof(sprintfbuffer), //
 			LCDStrings::VAL_FORMAT, // Format string
 			get_err_str(), // Error string
-			params[I_PUMP_RPM].get_map(M.pump_spd_f), // Pump speed
-			servo.pos * 100 / 255); // Oil temperature
+			params[I_PUMP_RPM].get_map(M.sensors.pump_speed), // Pump speed
+			M.servo.pos * 100 / 255); // Oil temperature
 
 	// Update lcd.
 	lcd.print(sprintfbuffer);
@@ -370,9 +422,9 @@ void config_mode() {
 	char rx_len; // Number of byte read by Serial.readBuffer().
 	static byte i = 0; // Parameter array index.
 
-	if (MachineState::chk_bits(M.sw, C::SW_SE)) {
+	if (chk_bits(M.sw, C::SW_SE)) {
 		// Select next parameter.
-		if (M.mode == C::MD_CONFIG_OS) {
+		if (M.md == C::MD_CONFIG_OS) {
 			// In operation settings mode
 			if (i >= OPER_PARAM_END) {
 				i = 0;
@@ -390,15 +442,15 @@ void config_mode() {
 
 		}
 
-	} else if (MachineState::chk_bits(M.sw, C::SW_UP)) {
+	} else if (chk_bits(M.sw, C::SW_UP)) {
 		// Increase parameter value.
 		params[i].increase();
 
-	} else if (MachineState::chk_bits(M.sw, C::SW_DN)) {
+	} else if (chk_bits(M.sw, C::SW_DN)) {
 		// Decrease parameter value.
 		params[i].decrease();
 
-	} else if (MachineState::chk_bits(M.sw, C::SW_SP)) {
+	} else if (chk_bits(M.sw, C::SW_SP)) {
 		// Using bluetooth connection; select or select and set parameter.
 		rx_len = Serial.readBytes((char*) rx_buf, buf_len);
 		if (rx_len > 0 && rx_buf[0] <= INST_PARAM_END) {
@@ -423,15 +475,14 @@ void config_mode() {
 
 	// Update lcd, transmit parameter to serial and postpone timeout if anything
 	// changes.
-	if (MachineState::chk_bits(M.sw,
-			C::SW_SE | C::SW_UP | C::SW_DN | C::SW_SP)) {
+	if (chk_bits(M.sw, C::SW_SE | C::SW_UP | C::SW_DN | C::SW_SP)) {
 		// Update values on the lcd.
 		snprintf(sprintfbuffer, sizeof(sprintfbuffer), LCDStrings::PRM_FORMAT,
 				i + 1, params[i].descr, params[i].get_map(params[i].val));
 		lcd.print(sprintfbuffer);
 
 		// Transmit parameter through serial.
-		params[i].transmit(M.mode, i);
+		params[i].transmit(M.md, i);
 
 		// Wait until buttons are all released.
 		while (Pins::SW_SE.read() == LOW || Pins::SW_UP.read() == LOW
@@ -452,8 +503,8 @@ inline void finish() {
 	using namespace P;
 
 	// Transmit sample to Serial if requested.
-	if (MachineState::chk_bits(M.sw, C::SW_GT)) {
-		M.serial_send();
+	if (chk_bits(M.sw, C::SW_GT)) {
+		M.sensors.transmit(M.md, M.time);
 	}
 
 	// Set alive pin low while waiting.
@@ -467,22 +518,22 @@ inline void finish() {
  */
 const char* get_err_str() {
 
-	if (MachineState::chk_bits(M.errors, C::ERR_PUMP_SENSOR)) {
+	if (chk_bits(M.err, C::ERR_PUMP_SENSOR)) {
 		return LCDStrings::ERR_TACH0;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_DRUM_SENSOR)) {
+	} else if (chk_bits(M.err, C::ERR_DRUM_SENSOR)) {
 		return LCDStrings::ERR_TACH1;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_DRUM_MAX)) {
+	} else if (chk_bits(M.err, C::ERR_DRUM_MAX)) {
 		return LCDStrings::ERR_DRUM_MAX;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TWI)) {
+	} else if (chk_bits(M.err, C::ERR_TWI)) {
 		return LCDStrings::ERR_TWI;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
+	} else if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
 		return LCDStrings::ERR_TEMP_HIGH;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_LOW)) {
+	} else if (chk_bits(M.err, C::ERR_TEMP_LOW)) {
 		return LCDStrings::ERR_TEMP_LOW;
 
 	}
@@ -491,15 +542,45 @@ const char* get_err_str() {
 }
 
 /**
- * Callback for interrupt 0 (digital pin 2) pump speed.
+ * Configuration mode. 
  */
-void pump_tic() {
-	M._pump_ticks++;
+/**
+ * Sets or clears bits in bitfield to bits in bitmask. If set is false, bits
+ * are unset otherwise they are set.
+ * 
+ * @param set Flag true to set bits. Unset otherwise.
+ * @param bitfield Byte to set or unset bits in.
+ * @param bitmask Byte with bits to set or unset.
+ */
+void set_bits(boolean set, byte& bitfield, byte bitmask) {
+	if (set) {
+		bitfield |= bitmask;
+	} else {
+		bitfield &= ~bitmask;
+	}
 }
 
 /**
- * Callback for interrupt 1 (digital pin 3) drum speed.
+ * Returns true if at least one bit in bitfield is active in in bitmask. 
+ * 
+ * @param byte Bits to look for in bitmask.
+ * @param byte Bits to compare bitfield with.
+ * @return boolean True if any bit is set.
+ */
+boolean chk_bits(byte& bitfield, byte bitmask) {
+	return (bitfield & bitmask);
+}
+
+/**
+ * Interupt function for interupt 0 (digital pin 2)
+ */
+void pump_tic() {
+	M.sensors._pump_cnt++;
+}
+
+/**
+ * Interupt function for interupt 1 (digital pin 3)
  */
 void drum_tic() {
-	M._drum_ticks++;
+	M.sensors._drum_cnt++;
 }
