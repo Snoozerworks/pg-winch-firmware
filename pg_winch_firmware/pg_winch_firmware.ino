@@ -340,47 +340,54 @@ void idle_mode() {
 void tow_mode() {
 	using namespace P;
 
-	// Update tachometer zero-speed counters. Used for error detection.
-	M.drum_err_cnt = (M.sensors.drum_speed_raw == 0) ? M.drum_err_cnt + 1 : 0;
-	M.pump_err_cnt = (M.sensors.pump_speed_raw == 0) ? M.pump_err_cnt + 1 : 0;
+	// Check drum overspeed.
+	set_bits(M.sensors.drum_speed > params[I_DRUM_SPD].val, M.err,
+			C::ERR_DRUM_MAX);
 
-	// Reset drum overspeed flag...
-	set_bits(false, M.err, C::ERR_DRUM_MAX);
+	// Check drum zero-speed fault. Zero drum speed only allowed at low
+	// throttle or for a limited amount of samples.
+	if (M.sensors.drum_speed_raw == 0 &&
+		M.servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD &&
+		M.drum_err_cnt < TACH_DRUM_ERR_COUNT) {
+		++M.drum_err_cnt;
+		if (M.drum_err_cnt >= TACH_DRUM_ERR_COUNT) {
+			set_bits(true, M.err, C::ERR_DRUM_SENSOR);
+		}
+	} else if (M.sensors.drum_speed_raw > 0) {
+		M.drum_err_cnt = 0;
+		set_bits(false, M.err, C::ERR_DRUM_SENSOR);
+	}
 
-	// Check over speeds and tachometer error conditions.
-	if (M.sensors.drum_speed > params[I_DRUM_SPD].val) {
-		// Drum overspeed!
-		set_bits(true, M.err, C::ERR_DRUM_MAX);
+	// Check pump zero-speed fault. Zero pump speed is only allowed for
+	// a limited amount of samples.
+	if (M.sensors.pump_speed_raw == 0
+		&& M.pump_err_cnt < TACH_PUMP_ERR_COUNT ) {
+		++M.pump_err_cnt;
+		if (M.pump_err_cnt >= TACH_PUMP_ERR_COUNT) {
+			set_bits(true, M.err, C::ERR_PUMP_SENSOR);
+		}
+	} else {
+		M.pump_err_cnt = 0;
+	}
 
-		// Reduce throttle to limit drum speed. Don't update PID-controller.
+	// Set servoposition.
+	if (chk_bits(M.err, C::ERR_DRUM_MAX | C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
+		// Drum overspeed, drum zero speed or pump zero speed faults
+		// detected. Reduce throttle to limit drum speed. Don't update
+		// PID-controller.
 		M.servo.pos -= min(M.servo.pos, 10);
 
-	} else if ((M.drum_err_cnt > TACH_DRUM_ERR_COUNT)
-			&& (M.servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD)) {
-		// Drum tachometer zero-speed fault condition. Can be reset only by
-		// re-enter tow mode.
-		set_bits(true, M.err, C::ERR_DRUM_SENSOR);
-
-		// Release throttle.
-		M.servo.pos = 0;
-
-	} else if (M.pump_err_cnt > TACH_PUMP_ERR_COUNT) {
-		// Pump tachometer fault condition. Can be reset only by re-enter tow
-		// mode.
-		set_bits(true, M.err, C::ERR_PUMP_SENSOR);
-
-		// Release throttle.
-		M.servo.pos = 0;
-
 	} else if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
-		// Oil temperature too high. Reduce pump speed to decrease further heat
-		// generation.
+		// Oil temperature too high. Continue to operate at minimum pump
+		// speed to minimize further heating.
 		M.pid.setpoint = (byte) params[I_PUMP_RPM].low;
 		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
 	} else {
-		// No errors. Update PID-controller. Set pump setpoint (which may have
-		// been previously changed due to a fault condition).
+		// No active faults.
+
+		// Update PID-controller. Set pump setpoint (which may have been
+		// previously changed due to a fault condition).
 		M.pid.setpoint = (byte) params[I_PUMP_RPM].val;
 		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
