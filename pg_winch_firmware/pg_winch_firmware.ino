@@ -17,7 +17,7 @@
  * > su
  * > usermod -a -G tty yourUserName
  * > usermod -a -G dialout yourUserName
- * Log off and log on again for the changes to take effect!
+ * Log off and log on again for the changes to take effect! 
  *
  * 2. Set Arduino IDE to use board "Arduino UNO"
  *
@@ -27,7 +27,7 @@
  * module shall respond with CMD. Then send "S~,4<CR>". To verify the setting
  * send "O<CR>" (O as in Oliver) and module will repond with a list of settings.
  * Don't include the "" when sending the commands.
- *
+ * 
  */
 
 /* This is for debugging only */
@@ -74,7 +74,7 @@ void setup() {
 	Serial.begin(115200);
 	Serial.setTimeout(READ_TIMEOUT);
 
-	// Start I2C
+	// Start I2C 
 	I2c.begin();
 	I2c.timeOut(READ_TIMEOUT);
 
@@ -115,7 +115,7 @@ void loop() {
 	// Read inputs (except tachometer)
 	read_switches();
 
-	// Select mode.
+	// Select mode. 
 	mode_select();
 
 	// Read tachometer inputs.
@@ -193,7 +193,7 @@ void read_switches() {
  * switches are read first in the loop.
  */
 void mode_select() {
-	byte last_mode; // Last mode of operation
+	byte last_mode; // Last mode of operation	
 
 	// Set alive pin high while working
 	Pins::ALIVE_LED.high();
@@ -334,60 +334,59 @@ void idle_mode() {
 
 /**
  * This is the second step when in tow mode. Calculates and controls the servo
- * position based on tachometer values. Also check for drum overspeed, drum
+ * position based on tachometer values. Also check for drum overspeed, drum 
  * tachometer fault and pump tachometer fault.
  */
 void tow_mode() {
 	using namespace P;
 
-	// Check drum overspeed.
-	set_bits(M.sensors.drum_speed > params[I_DRUM_SPD].val, M.err,
-			C::ERR_DRUM_MAX);
-
-	// Check drum zero-speed fault. Zero drum speed only allowed at low
-	// throttle or for a limited amount of samples.
-	if (M.sensors.drum_speed_raw == 0 &&
-		M.servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD &&
-		M.drum_err_cnt < TACH_DRUM_ERR_COUNT) {
-		++M.drum_err_cnt;
-		if (M.drum_err_cnt >= TACH_DRUM_ERR_COUNT) {
+	// Check drum tachometer zero-speed fault. Drum speed is allowed to be
+	// zero only for a limited amount of applied throttle and samples.
+	if (M.sensors.drum_speed_raw == 0
+			&& M.servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD) {
+		if (M.drum_err_cnt++ > TACH_DRUM_ERR_COUNT) {
 			set_bits(true, M.err, C::ERR_DRUM_SENSOR);
 		}
-	} else if (M.sensors.drum_speed_raw > 0) {
+	} else {
 		M.drum_err_cnt = 0;
-		set_bits(false, M.err, C::ERR_DRUM_SENSOR);
 	}
 
-	// Check pump zero-speed fault. Zero pump speed is only allowed for
-	// a limited amount of samples.
-	if (M.sensors.pump_speed_raw == 0
-		&& M.pump_err_cnt < TACH_PUMP_ERR_COUNT ) {
-		++M.pump_err_cnt;
-		if (M.pump_err_cnt >= TACH_PUMP_ERR_COUNT) {
+	// Check pump tachometer zero-speed fault. Drum speed is allowed to be
+	// zero only for a limited amount of samples.
+	if (M.sensors.pump_speed_raw == 0) {
+		if (M.pump_err_cnt++ > TACH_PUMP_ERR_COUNT) {
 			set_bits(true, M.err, C::ERR_PUMP_SENSOR);
 		}
 	} else {
 		M.pump_err_cnt = 0;
 	}
 
+	// Check drum overspeed.
+	set_bits(M.sensors.drum_speed > params[I_DRUM_SPD].val, M.err,
+			C::ERR_DRUM_MAX);
+
 	// Set servoposition.
-	if (chk_bits(M.err, C::ERR_DRUM_MAX | C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
-		// Drum overspeed, drum zero speed or pump zero speed faults
-		// detected. Reduce throttle to limit drum speed. Don't update
-		// PID-controller.
-		M.servo.pos -= min(M.servo.pos, 20);
+	if (chk_bits(M.err, C::ERR_DRUM_MAX)) {
+		// Drum overspeed detected.
+		// Reduce throttle to limit drum speed. Don't update PID-controller.
+		M.servo.pos -= min(M.servo.pos, 10);
+
+	} else if (chk_bits(M.err, C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
+		// Drum or tachometer fault. Can be reset only by re-enter tow mode.
+		// Release throttle.
+		M.servo.pos = 0;
 
 	} else if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
-		// Oil temperature too high. Continue to operate at minimum pump
-		// speed to minimize further heating.
+		// Oil temperature too high. Continue to operate with minimum pump
+		// speed to minimize further heat.
 		M.pid.setpoint = (byte) params[I_PUMP_RPM].low;
 		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
 	} else {
-		// No active faults.
+		// No errors.
 
-		// Update PID-controller. Set pump setpoint (which may have been
-		// previously changed due to a fault condition).
+		// Update PID-controller. Set pump setpoint (which may have
+		// been previously changed due to a fault condition).
 		M.pid.setpoint = (byte) params[I_PUMP_RPM].val;
 		M.servo.pos = M.pid.process(M.sensors.pump_speed, M.sensors.drum_speed);
 
@@ -491,7 +490,7 @@ void config_mode() {
 		}
 
 		// Mark time when changing parameter. Will pause 100ms, then timeout
-		// after CONF_TIMEOUT ms.
+		// after CONF_TIMEOUT ms.  
 		M.mark_time = millis() + 100;
 	}
 
@@ -543,12 +542,12 @@ const char* get_err_str() {
 }
 
 /**
- * Configuration mode.
+ * Configuration mode. 
  */
 /**
  * Sets or clears bits in bitfield to bits in bitmask. If set is false, bits
  * are unset otherwise they are set.
- *
+ * 
  * @param set Flag true to set bits. Unset otherwise.
  * @param bitfield Byte to set or unset bits in.
  * @param bitmask Byte with bits to set or unset.
@@ -562,8 +561,8 @@ void set_bits(boolean set, byte& bitfield, byte bitmask) {
 }
 
 /**
- * Returns true if at least one bit in bitfield is active in in bitmask.
- *
+ * Returns true if at least one bit in bitfield is active in in bitmask. 
+ * 
  * @param byte Bits to look for in bitmask.
  * @param byte Bits to compare bitfield with.
  * @return boolean True if any bit is set.
