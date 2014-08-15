@@ -31,14 +31,8 @@ public:
 	 * @return int Digital HIGH or LOW.
 	 */
 	inline int read() {
-		//    if (no < 8) {
-		//      return bitRead(PORTD, no);
-		//    } else {
-		//      return bitRead(PORTB, no);
-		//    }
 		return digitalRead(no);
 	}
-	;
 
 	/**
 	 * Write HIGH.
@@ -64,7 +58,7 @@ public:
 	uint8_t no;
 
 	/**
-	 * Initate pin i.e. set pin mode.
+	 * Initiate pin i.e. set pin mode.
 	 *
 	 * @param n Pin number.
 	 * @param m Pin mode.
@@ -102,8 +96,8 @@ const byte CM_NOCMD = 0; // No command
 const byte CM_SE = 1; // Select switch active
 const byte CM_UP = 2; // Up switch active
 const byte CM_DN = 3; // Down switch active
-const byte CM_SP = 4; // Set parameter (viritual) switch active
-const byte CM_GT = 5; // Get sample (viritual) switch active
+const byte CM_SP = 4; // Set parameter (virtual) switch active
+const byte CM_GT = 5; // Get sample (virtual) switch active
 const byte CM__LAST = CM_GT; // Last element. Used internally only.
 
 // State of switches are saved in a structure.
@@ -111,9 +105,9 @@ const byte SW_NE = 1; // Neutral switch
 const byte SW_SE = 2; // Select switch
 const byte SW_UP = 4; // Up switch
 const byte SW_DN = 8; // Down switch
-const byte SW_SP = 16; // Set parameter (viritual) switch
-const byte SW_GT = 32; // Get sample (viritual) switch
-const byte SW_IS = 64; // Installation settings (viritual) switch
+const byte SW_SP = 16; // Set parameter (virtual) switch
+const byte SW_GT = 32; // Get sample (virtual) switch
+const byte SW_IS = 64; // Installation settings (virtual) switch
 
 // State of errors are saved in a structure.
 const byte ERR_TEMP_HIGH = 1; // Above high temperature limit
@@ -132,10 +126,10 @@ const byte ERR_DRUM_SENSOR = 32; // Drum sensor fault
  * - low      : The parameter lower bound
  * - high     : The parameter higher bound
  * - step     : The step by which to increment or decrement val.
- * - low_map  : Map the lower bound of a paramater to a custom scale.
- * - high_map : Map the higher bound of a paramater to a custom scale.
+ * - low_map  : Map the lower bound of a parameter to a custom scale.
+ * - high_map : Map the higher bound of a parameter to a custom scale.
  * 
- * Map values (low_map/high_map) are used to convert paramater value to a unit 
+ * Map values (low_map/high_map) are used to convert parameter value to a unit
  * of own choice when displaying the value on the lcd.
  */
 struct Parameter {
