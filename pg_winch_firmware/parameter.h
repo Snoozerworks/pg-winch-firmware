@@ -41,7 +41,7 @@ const byte TACH_DRUM_ERR_COUNT = 2; // Number of samples with drum zero speed be
 const byte TACH_DRUM_ERR_SERVO_TRESHOLD = 95; // Max servo setpoint value allowed before resetting servo due to drum zero speed.
 
 // Tachometer filter parameter see types.h
-//const byte FILTER_SHIFT = 2; // Shift parameter. 1-3 should likely suffice.
+const byte FILTER_SHIFT = 1; // Shift parameter. 1-3 should likely suffice.
 
 // Manual throttle step (used in idle mode)
 const byte MAN_THROTTLE_STEP = 10;
@@ -122,23 +122,21 @@ const byte OPER_PARAM_END = I_OIL_LO;
 const byte INST_PARAM_END = I_PID_IMAX;
 
 // See Parameter type definition for how to define a parameter.
-Parameter params[] = {
-// {0, "Max linhastighet", 36, 20, 48, 1, 20 / T_SAMPLE / PPT_DRUM * 2262, 48 / T_SAMPLE / PPT_DRUM * 2262},
-// {1, "Pumpvarv", 16, 6, 36, 1, 6 / T_SAMPLE / PPT_PUMP * 30000, 36 / T_SAMPLE / PPT_PUMP * 30000},
+Parameter params[] = { //
 		{ 0, "Max linhastighet", 50, 20, 70, 1, 28, 100 }, //
-		{ 1, "Pumpvarv", 13, 6, 36, 1, 90, 540 }, //
-		{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
-		{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
-		{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
-		{ 5, "Servo max-puls", 2140, 600, 2400, 20, 600, 2400 }, //
-		{ 6, "Servo reset tid", 250, 100, 600, 25, 100, 600 }, //
-		{ 7, "PID p", 13, 1, 32, 1, 1, 32 }, //
-		{ 8, "PID i", 5, 0, 32, 1, 0, 32 }, //
-		{ 9, "PID d", 7, 0, 32, 1, 0, 32 }, //
-		{ 10, "PID k", -17, -32, 32, 1, -32, 32 }, //
-		{ 11, "PID i gr\xE1ns", 95, 0, 255, 1, 0, 255 } //
-};
+				{ 1, "Pumpvarv", 13, 6, 36, 1, 90, 540 }, //
+				{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
+				{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
+				{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
+				{ 5, "Servo max-puls", 2140, 600, 2400, 20, 600, 2400 }, //
+				{ 6, "Servo reset tid", 250, 100, 600, 25, 100, 600 }, //
+				{ 7, "PID p", 13, 1, 32, 1, 1, 32 }, //
+				{ 8, "PID i", 5, 0, 32, 1, 0, 32 }, //
+				{ 9, "PID d", 7, 0, 32, 1, 0, 32 }, //
+				{ 10, "PID k", -17, -32, 32, 1, -32, 32 }, //
+				{ 11, "PID i gr\xE1ns", 95, 0, 255, 1, 0, 255 } //
+		};
 
 }
 
-#endif
+#endif /* PARAMETERS_H */

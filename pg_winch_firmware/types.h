@@ -67,7 +67,6 @@ public:
 		this->no = n;
 		pinMode(n, m);
 	}
-	;
 
 	/**
 	 * Read an analogue pin
@@ -76,7 +75,6 @@ public:
 	inline int read() {
 		return analogRead(no);
 	}
-	;
 };
 
 /**
@@ -98,7 +96,7 @@ const byte CM_UP = 2; // Up switch active
 const byte CM_DN = 3; // Down switch active
 const byte CM_SP = 4; // Set parameter (virtual) switch active
 const byte CM_GT = 5; // Get sample (virtual) switch active
-const byte CM__LAST = CM_GT; // Last element. Used internally only.
+const byte _CM_LAST = CM_GT; // Last element. Used internally only.
 
 // State of switches are saved in a structure.
 const byte SW_NE = 1; // Neutral switch
@@ -194,7 +192,6 @@ struct Parameter {
 	 * @return int Mapped value.
 	 */
 	int get_map(int v) {
-		//return map(v, low, high, low_map, high_map);
 		return low_map + ((long) v - low) * (high_map - low_map) / (high - low);
 	}
 
@@ -226,106 +223,6 @@ struct Parameter {
 		Serial.write(tx_buffer, sizeof(tx_buffer));
 		Serial.write((byte*) descr, sizeof(descr));
 		Serial.flush();
-	}
-
-};
-
-/**
- * Structure for keeping sensor state data.
- *
- * byte  0 : mode
- * byte  1 : timestamp() byte 1 (high byte)
- * byte  2 : timestamp() byte 2
- * byte  3 : timestamp() byte 3
- * byte  4 : timestamp() byte 4 (low byte)
- * byte  5 : tachometer 0 (pump)
- * byte  6 : tachometer 1 (diff)
- * byte  7 : temp sensor (high byte)
- * byte  8 : temp sensor (low byte)
- * byte  9 : pressure sensor (high byte)
- * byte 10 : pressure sensor (low byte)
- */
-struct SensorsState {
-	// Properties
-	volatile byte _drum_cnt; // Used by interrupt handler 1
-	volatile byte _pump_cnt; // Used by interrupt handler 0
-	byte drum_speed_raw; // Drum speed (counts per sample x 2)
-	byte pump_speed_raw; // Pump speed (counts per sample x 2)
-	byte drum_speed; // LP filtered drum_speed_raw
-	byte pump_speed; // LP filtered pump_speed_raw
-	int temp; // Oil temperature
-	int pres; // Pump pressure
-	unsigned int _tach_drum_filt; // Drum low pass filter
-	unsigned int _tach_pump_filt; // Pump low pass filter
-
-	/**
-	 * Write sensor data to Serial. High byte are sent before low bytes
-	 * (big endian byte order).
-	 * In total 11 bytes are sent.
-	 *
-	 * @param mode
-	 * @param time
-	 */
-	void transmit(byte mode, unsigned long time) {
-		byte tx_buffer[11];
-		tx_buffer[0] = mode;
-		tx_buffer[1] = time >> 24;
-		tx_buffer[2] = time >> 16;
-		tx_buffer[3] = time >> 8;
-		tx_buffer[4] = time;
-		tx_buffer[5] = pump_speed_raw;
-		tx_buffer[6] = drum_speed_raw;
-		tx_buffer[7] = temp >> 8;
-		tx_buffer[8] = temp;
-		tx_buffer[9] = pres >> 8;
-		tx_buffer[10] = pres;
-
-		Serial.write(tx_buffer, sizeof(tx_buffer));
-		Serial.flush();
-	}
-	;
-
-	/**
-	 * Updates pump and drum speeds.
-	 *
-	 * Low pass filtered values are calculated too. A local parameter FILTER_SHIFT
-	 * sets the low pass filter characteristics.
-	 *
-	 * NOTE! The tachometer count is multiplied by 2 when doing speed
-	 * calculations. This is to improve the resolution for the low pass filtered
-	 * values.
-	 *
-	 * For example, if a tachometer has counted [126, 127] the raw speed value is
-	 * even values like e.g. [252, 254]. The low pass filtered speed value may
-	 * however also contain odd numbers [253, 253].
-	 *
-	 * Also see http://www.edn.com/design/systems-design/4320010/A-simple-software-lowpass-filter-suits-embedded-system-applications
-	 *
-	 * @return void
-	 */
-	void tachometer_read() {
-		const byte FILTER_SHIFT = 1; // Shift parameter. 1-3 should likely suffice.
-		static byte drum_cnt_old; // Previous drum tachometer count sample
-		static byte pump_cnt_old; // Previous pump tachometer count sample
-		byte drum_cnt; // Drum tachometer count
-		byte pump_cnt; // Pump tachometer count
-
-		// Read drum_cnt and pump_cnt only once!
-		drum_cnt = _drum_cnt;
-		pump_cnt = _pump_cnt;
-		drum_speed_raw = (drum_cnt - drum_cnt_old) * 2; // Note multiplication by 2!
-		pump_speed_raw = (pump_cnt - pump_cnt_old) * 2; // Note multiplication by 2!
-		drum_cnt_old = drum_cnt;
-		pump_cnt_old = pump_cnt;
-
-		_tach_drum_filt = _tach_drum_filt - (_tach_drum_filt >> FILTER_SHIFT)
-				+ drum_speed_raw;
-		drum_speed = _tach_drum_filt >> FILTER_SHIFT;
-
-		_tach_pump_filt = _tach_pump_filt - (_tach_pump_filt >> FILTER_SHIFT)
-				+ pump_speed_raw;
-		pump_speed = _tach_pump_filt >> FILTER_SHIFT;
-
 	}
 
 };
