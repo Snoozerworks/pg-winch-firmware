@@ -16,7 +16,7 @@ public:
 	uint8_t no;
 
 	/**
-	 * Initate pin i.e. set pin mode.
+	 * Initiate pin i.e. set pin mode.
 	 *
 	 * @param n Pin number.
 	 * @param m Pin mode.
@@ -162,14 +162,14 @@ struct Parameter {
 	}
 
 	/**
-	 * Increase value by delta within limits of ubound
+	 * Increase value by delta within bounds of low and high.
 	 */
 	void increase() {
 		set(val + step);
 	}
 
 	/**
-	 * Increase value by delta within limits of ubound.
+	 * Decrease value by delta within bounds of low and high.
 	 */
 	void decrease() {
 		set(val - step);
