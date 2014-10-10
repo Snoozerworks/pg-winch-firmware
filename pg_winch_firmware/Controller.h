@@ -106,6 +106,14 @@ public:
 		return (byte) output;
 	}
 
+
+	void set_param_i(byte pid_i) {
+		using namespace P;
+		if ( pid_i > params[I_PID_I].high ) return;
+		if ( pid_i < params[I_PID_I].low ) return;
+		integral = params[I_PID_I].val * integral / pid_i;
+	}
+
 };
 
 #endif /* CONTROLLER_H */
