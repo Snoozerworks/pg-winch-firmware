@@ -343,6 +343,9 @@ void tow_mode() {
 	// Update servo position.
 	servo.set();
 
+	// Set spreader speed
+	analogWrite(Pins::OUT1.no, M.drum_spd_f * 2);
+
 	// Prepare text (sprintfbuffer) to update displayed lcd values.
 	snprintf(sprintfbuffer, sizeof(sprintfbuffer), //
 			LCDStrings::VAL_FORMAT, // Format string
