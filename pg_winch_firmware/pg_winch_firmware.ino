@@ -48,206 +48,47 @@ ThrottleServo servo;	// Servo object
 Controller pid; 		// PID controller object
 
 /**
- * Arduino entry point for program.
+ * Callback for interrupt 0 (digital pin 2) pump speed.
  */
-void setup() {
-	// Switch off outputs (inverted logic here...)
-	Pins::OUT1.high();
-	Pins::OUT2.high();
-
-	// Initialise states
-	M.mode = C::MD_STARTUP; // Flag for startup
-	M.mark_time = 0;
-
-	// Start serial for RN-42 bluetooth module.
-	Serial.begin(115200);
-	Serial.setTimeout(READ_TIMEOUT);
-
-	// Start I2C 
-	I2c.begin();
-	I2c.timeOut(READ_TIMEOUT);
-
-	// Load parameters stored in flash memory
-	for (byte i = 0; i <= P::INST_PARAM_END; i++) {
-		P::params[i].eeprom_load();
-	}
-
-	// Allow devices to settle a bit
-	delay(250);
-
-	// Program custom lcd characters.
-	lcd.loadCustomChars();
-
-	// Show lcd startup message
-	lcd.print(LCDStrings::MSG_STARTUP);
-
-	// Prepare I2C temp sensor
-	I2c.write(I2C_TMP_ADDR, (uint8_t) 0);
-
-	// Setup pump and drum tachometers
-	attachInterrupt(0, pump_tic, CHANGE);
-	attachInterrupt(1, drum_tic, RISING);
-
-	// Now enter main loop...
+void pump_tic() {
+	M._pump_ticks++;
 }
 
 /**
- * Arduino main loop runs every T_SAMPLE period until power is shut-off.
+ * Callback for interrupt 1 (digital pin 3) drum speed.
  */
-void loop() {
-
-	// Loop until timeout
-	do {
-		M.time = millis(); // Only one call to millis()
-	} while (M.mark_time > M.time);
-
-	// Read inputs (except tachometer)
-	M.read_switches();
-
-	// Select mode. 
-	mode_select();
-
-	// Read tachometer inputs and update machine state.
-	M.read_tachometers();
-
-	switch (M.mode) {
-	case C::MD_IDLE:
-		idle_mode();
-		break;
-
-	case C::MD_TOWING:
-		tow_mode();
-		break;
-
-	case C::MD_CONFIG_IS:
-	case C::MD_CONFIG_OS:
-		config_mode();
-		break;
-
-	case C::MD_STARTUP:
-	case C::MD_NOMODE:
-	default:
-		break;
-	}
-
-	// Finish phase
-	finish();
-
+void drum_tic() {
+	M._drum_ticks++;
 }
 
 /**
- * This is the first step in each loop when running. Tachometers and neutral
- * switches are read first in the loop.
+ * Checks error bits and returns corresponding error string.
+ *
+ * @return char* Any of the LCDStrings::ERR_* strings.
  */
-void mode_select() {
-	byte last_mode; // Last mode of operation	
+const char* get_err_str() {
 
-	// Set alive pin high while working
-	Pins::ALIVE_LED.high();
+	if (MachineState::chk_bits(M.errors, C::ERR_PUMP_SENSOR)) {
+		return LCDStrings::ERR_TACH0;
 
-	// Update last mode.
-	last_mode = M.mode;
+	} else if (MachineState::chk_bits(M.errors, C::ERR_DRUM_SENSOR)) {
+		return LCDStrings::ERR_TACH1;
 
-	// Check conditions for changing mode.
-	switch (M.mode) {
-	case C::MD_IDLE:
-		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
-			// Gear in neutral.
-			if (MachineState::chk_bits(M.sw, C::SW_SE | C::SW_SP)) {
-				// Select switch or Installation settings (virtual) switch active.
-				// Change to installation configuration mode.
-				M.mode =
-						(MachineState::chk_bits(M.sw, C::SW_SE)) ?
-								C::MD_CONFIG_OS : C::MD_CONFIG_IS;
+	} else if (MachineState::chk_bits(M.errors, C::ERR_DRUM_MAX)) {
+		return LCDStrings::ERR_DRUM_MAX;
 
-				// Reset and detach servo.
-				servo.reset();
-				servo.detach();
-			}
+	} else if (MachineState::chk_bits(M.errors, C::ERR_TWI)) {
+		return LCDStrings::ERR_TWI;
 
-		} else if (!MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
-			// Gear engaged and oil temperature not too high.
+	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
+		return LCDStrings::ERR_TEMP_HIGH;
 
-			// Change to tow mode.
-			M.mode = C::MD_TOWING;
-
-			// Reset tachometer errors before tow mode is entered.
-			M.set_bits(false, M.errors,
-					C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
-
-			// Reset PID-controller to avoid servo glitches.
-			pid.reset();
-
-			// Wait for automatic transmission to engage.
-			delay(GEAR_ENGAGE_DELAY);
-
-		}
-		break;
-
-	case C::MD_TOWING:
-		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
-			// Gear in neutral. Reset servo and change to idle mode.
-			M.mode = C::MD_IDLE;
-			servo.reset();
-		}
-		break;
-
-	case C::MD_CONFIG_IS:
-	case C::MD_CONFIG_OS:
-		if (M.time - M.mark_time >= CONF_TIMEOUT) {
-			// Settings mode timed out. Change to to idle mode.
-			M.mode = C::MD_IDLE;
-
-			// Reconnect servo
-			servo.attach(Pins::SERVO.no);
-		}
-		break;
-
-	case C::MD_NOMODE:
-	case C::MD_STARTUP:
-	default:
-		if (MachineState::chk_bits(M.sw, C::SW_SE)) {
-			// Go into installation configuration mode if select switch is pressed.
-			M.mode = C::MD_CONFIG_IS;
-		} else if (MachineState::chk_bits(M.sw, C::SW_NE)) {
-			// Gear in neutral. Reset servo and change to idle mode.
-			M.mode = C::MD_IDLE;
-
-			// Attach and reset servo position
-			servo.attach(Pins::SERVO.no);
-			servo.reset();
-		}
-		break;
+	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_LOW)) {
+		return LCDStrings::ERR_TEMP_LOW;
 
 	}
 
-	// Update lcd background if mode changes
-	if (M.mode != last_mode) {
-		switch (M.mode) {
-		case C::MD_IDLE:
-			lcd.print(LCDStrings::MSG_IDLE);
-			break;
-
-		case C::MD_TOWING:
-			lcd.print(LCDStrings::MSG_TOWING);
-			break;
-
-		case C::MD_CONFIG_OS:
-		case C::MD_CONFIG_IS:
-			lcd.print(LCDStrings::MSG_CONFIG);
-			break;
-
-		case C::MD_STARTUP:
-		case C::MD_NOMODE:
-		default:
-			break;
-		}
-
-		// Delay to prevent messed up lcd display.
-		delay(5);
-
-	}
-
+	return LCDStrings::ERR_NO_ERR;
 }
 
 /**
@@ -464,45 +305,204 @@ inline void finish() {
 }
 
 /**
- * Checks error bits and returns corresponding error string.
- *
- * @return char* Any of the LCDStrings::ERR_* strings.
+ * This is the first step in each loop when running. Tachometers and neutral
+ * switches are read first in the loop.
  */
-const char* get_err_str() {
+void mode_select() {
+	byte last_mode; // Last mode of operation
 
-	if (MachineState::chk_bits(M.errors, C::ERR_PUMP_SENSOR)) {
-		return LCDStrings::ERR_TACH0;
+	// Set alive pin high while working
+	Pins::ALIVE_LED.high();
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_DRUM_SENSOR)) {
-		return LCDStrings::ERR_TACH1;
+	// Update last mode.
+	last_mode = M.mode;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_DRUM_MAX)) {
-		return LCDStrings::ERR_DRUM_MAX;
+	// Check conditions for changing mode.
+	switch (M.mode) {
+	case C::MD_IDLE:
+		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
+			// Gear in neutral.
+			if (MachineState::chk_bits(M.sw, C::SW_SE | C::SW_SP)) {
+				// Select switch or Installation settings (virtual) switch active.
+				// Change to installation configuration mode.
+				M.mode =
+						(MachineState::chk_bits(M.sw, C::SW_SE)) ?
+								C::MD_CONFIG_OS : C::MD_CONFIG_IS;
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TWI)) {
-		return LCDStrings::ERR_TWI;
+				// Reset and detach servo.
+				servo.reset();
+				servo.detach();
+			}
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
-		return LCDStrings::ERR_TEMP_HIGH;
+		} else if (!MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
+			// Gear engaged and oil temperature not too high.
 
-	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_LOW)) {
-		return LCDStrings::ERR_TEMP_LOW;
+			// Change to tow mode.
+			M.mode = C::MD_TOWING;
+
+			// Reset tachometer errors before tow mode is entered.
+			M.set_bits(false, M.errors,
+					C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
+
+			// Reset PID-controller to avoid servo glitches.
+			pid.reset();
+
+			// Wait for automatic transmission to engage.
+			delay(GEAR_ENGAGE_DELAY);
+
+		}
+		break;
+
+	case C::MD_TOWING:
+		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
+			// Gear in neutral. Reset servo and change to idle mode.
+			M.mode = C::MD_IDLE;
+			servo.reset();
+		}
+		break;
+
+	case C::MD_CONFIG_IS:
+	case C::MD_CONFIG_OS:
+		if (M.time - M.mark_time >= CONF_TIMEOUT) {
+			// Settings mode timed out. Change to to idle mode.
+			M.mode = C::MD_IDLE;
+
+			// Reconnect servo
+			servo.attach(Pins::SERVO.no);
+		}
+		break;
+
+	case C::MD_NOMODE:
+	case C::MD_STARTUP:
+	default:
+		if (MachineState::chk_bits(M.sw, C::SW_SE)) {
+			// Go into installation configuration mode if select switch is pressed.
+			M.mode = C::MD_CONFIG_IS;
+		} else if (MachineState::chk_bits(M.sw, C::SW_NE)) {
+			// Gear in neutral. Reset servo and change to idle mode.
+			M.mode = C::MD_IDLE;
+
+			// Attach and reset servo position
+			servo.attach(Pins::SERVO.no);
+			servo.reset();
+		}
+		break;
 
 	}
 
-	return LCDStrings::ERR_NO_ERR;
+	// Update lcd background if mode changes
+	if (M.mode != last_mode) {
+		switch (M.mode) {
+		case C::MD_IDLE:
+			lcd.print(LCDStrings::MSG_IDLE);
+			break;
+
+		case C::MD_TOWING:
+			lcd.print(LCDStrings::MSG_TOWING);
+			break;
+
+		case C::MD_CONFIG_OS:
+		case C::MD_CONFIG_IS:
+			lcd.print(LCDStrings::MSG_CONFIG);
+			break;
+
+		case C::MD_STARTUP:
+		case C::MD_NOMODE:
+		default:
+			break;
+		}
+
+		// Delay to prevent messed up lcd display.
+		delay(5);
+
+	}
+
 }
 
 /**
- * Callback for interrupt 0 (digital pin 2) pump speed.
+ * Arduino entry point for program.
  */
-void pump_tic() {
-	M._pump_ticks++;
+void setup() {
+	// Switch off outputs (inverted logic here...)
+	Pins::OUT1.high();
+	Pins::OUT2.high();
+
+	// Initialise states
+	M.mode = C::MD_STARTUP; // Flag for startup
+	M.mark_time = 0;
+
+	// Start serial for RN-42 bluetooth module.
+	Serial.begin(115200);
+	Serial.setTimeout(READ_TIMEOUT);
+
+	// Start I2C
+	I2c.begin();
+	I2c.timeOut(READ_TIMEOUT);
+
+	// Load parameters stored in flash memory
+	for (byte i = 0; i <= P::INST_PARAM_END; i++) {
+		P::params[i].eeprom_load();
+	}
+
+	// Allow devices to settle a bit
+	delay(250);
+
+	// Program custom lcd characters.
+	lcd.loadCustomChars();
+
+	// Show lcd startup message
+	lcd.print(LCDStrings::MSG_STARTUP);
+
+	// Prepare I2C temp sensor
+	I2c.write(I2C_TMP_ADDR, (uint8_t) 0);
+
+	// Setup pump and drum tachometers
+	attachInterrupt(0, pump_tic, CHANGE);
+	attachInterrupt(1, drum_tic, RISING);
+
+	// Now enter main loop...
 }
 
 /**
- * Callback for interrupt 1 (digital pin 3) drum speed.
+ * Arduino main loop runs every T_SAMPLE period until power is shut-off.
  */
-void drum_tic() {
-	M._drum_ticks++;
+void loop() {
+
+	// Loop until timeout
+	do {
+		M.time = millis(); // Only one call to millis()
+	} while (M.mark_time > M.time);
+
+	// Read inputs (except tachometer)
+	M.read_switches();
+
+	// Select mode.
+	mode_select();
+
+	// Read tachometer inputs and update machine state.
+	M.read_tachometers();
+
+	switch (M.mode) {
+	case C::MD_IDLE:
+		idle_mode();
+		break;
+
+	case C::MD_TOWING:
+		tow_mode();
+		break;
+
+	case C::MD_CONFIG_IS:
+	case C::MD_CONFIG_OS:
+		config_mode();
+		break;
+
+	case C::MD_STARTUP:
+	case C::MD_NOMODE:
+	default:
+		break;
+	}
+
+	// Finish phase
+	finish();
+
 }
