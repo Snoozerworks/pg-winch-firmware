@@ -51,14 +51,14 @@ Controller pid; 		// PID controller object
  * Callback for interrupt 0 (digital pin 2) pump speed.
  */
 void pump_tic() {
-	M._pump_ticks++;
+	++M._pump_ticks;
 }
 
 /**
  * Callback for interrupt 1 (digital pin 3) drum speed.
  */
 void drum_tic() {
-	M._drum_ticks++;
+	++M._drum_ticks;
 }
 
 /**
