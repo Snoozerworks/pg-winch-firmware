@@ -77,18 +77,30 @@ public:
 	 * Also see http://www.edn.com/design/systems-design/4320010/A-simple-software-lowpass-filter-suits-embedded-system-applications *
 	 */
 	void read_tachometers() {
-		static unsigned int drum_filter = 0; // Filter
-		static unsigned int pump_filter = 0; // Filter
+	static byte drum_ticks_old = 0;				// Previous sample of drum tachometer count
+		static byte pump_ticks_old = 0;			// Previous sample of pump tachometer count
+		byte drum_ticks;						// Drum tachometer count
+		byte pump_ticks;						// Pump tachometer count
+		static unsigned int drum_filter = 0; 	// Filter
+		static unsigned int pump_filter = 0; 	// Filter
 
-		drum_spd = _drum_ticks;
-		pump_spd = _pump_ticks;
+		// Read volatile variables just once
+		drum_ticks = _drum_ticks;
+		pump_ticks = _pump_ticks;
 
-		drum_spd <<= 1; // Note multiplication by 2!
-		pump_spd <<= 1; // Note multiplication by 2!
+		// Update speed. Note multiplication by 2!
+		drum_spd = (drum_ticks - drum_ticks_old) << 1;
+		pump_spd = (pump_ticks - pump_ticks_old) << 1;
 
+		// Update tachometer count history
+		drum_ticks_old = drum_ticks;
+		pump_ticks_old = pump_ticks;
+
+		// Filter drum speed
 		drum_filter = drum_filter - (drum_filter >> FILTER_SHIFT) + drum_spd;
 		drum_spd_f = (byte) (drum_filter >> FILTER_SHIFT);
 
+		// Filter pump speed
 		pump_filter = pump_filter - (pump_filter >> FILTER_SHIFT) + pump_spd;
 		pump_spd_f = (byte) (pump_filter >> FILTER_SHIFT);
 
