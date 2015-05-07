@@ -77,7 +77,7 @@ public:
 	 * Also see http://www.edn.com/design/systems-design/4320010/A-simple-software-lowpass-filter-suits-embedded-system-applications *
 	 */
 	void read_tachometers() {
-	static byte drum_ticks_old = 0;				// Previous sample of drum tachometer count
+		static byte drum_ticks_old = 0;			// Previous sample of drum tachometer count
 		static byte pump_ticks_old = 0;			// Previous sample of pump tachometer count
 		byte drum_ticks;						// Drum tachometer count
 		byte pump_ticks;						// Pump tachometer count
