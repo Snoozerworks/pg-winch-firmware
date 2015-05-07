@@ -144,7 +144,7 @@ public:
 	/**
 	 * Write sensor data to Serial.
 	 *
-	 * High byte are sent before low bytes (big endian byte order). In total 11
+	 * High byte are sent before low bytes (big endian byte order). In total 12
 	 * bytes are sent;
 	 *
 	 * byte  0 : mode
@@ -152,27 +152,29 @@ public:
 	 * byte  2 : timestamp byte 2
 	 * byte  3 : timestamp byte 3
 	 * byte  4 : timestamp byte 4 (low byte)
-	 * byte  5 : pump speed
-	 * byte  6 : drum speed
-	 * byte  7 : temperature (high byte)
-	 * byte  8 : temperature (low byte)
-	 * byte  9 : pressure (high byte)
-	 * byte 10 : pressure (low byte)
+	 * byte  5 : errors
+	 * byte  6 : pump speed
+	 * byte  7 : drum speed
+	 * byte  8 : temperature (high byte)
+	 * byte  9 : temperature (low byte)
+	 * byte 10 : pressure (high byte)
+	 * byte 11 : pressure (low byte)
 	 *
 	 */
 	void serial_send() {
-		byte tx_buffer[11];
-		tx_buffer[0] = mode;
-		tx_buffer[1] = time >> 24;
-		tx_buffer[2] = time >> 16;
-		tx_buffer[3] = time >> 8;
-		tx_buffer[4] = time;
-		tx_buffer[5] = pump_spd;
-		tx_buffer[6] = drum_spd;
-		tx_buffer[7] = temp >> 8;
-		tx_buffer[8] = temp;
-		tx_buffer[9] = pres >> 8;
-		tx_buffer[10] = pres;
+		byte tx_buffer[12];
+		tx_buffer[ 0] = mode;
+		tx_buffer[ 1] = time >> 24;
+		tx_buffer[ 2] = time >> 16;
+		tx_buffer[ 3] = time >> 8;
+		tx_buffer[ 4] = time;
+		tx_buffer[ 5] = errors;
+		tx_buffer[ 6] = pump_spd;
+		tx_buffer[ 7] = drum_spd;
+		tx_buffer[ 8] = temp >> 8;
+		tx_buffer[ 9] = temp;
+		tx_buffer[10] = pres >> 8;
+		tx_buffer[11] = pres;
 
 		Serial.write(tx_buffer, sizeof(tx_buffer));
 		Serial.flush();
