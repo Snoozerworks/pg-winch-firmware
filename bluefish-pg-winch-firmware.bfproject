@@ -1,5 +1,7 @@
 c2e.convert_special: 0
 e2c.convert_num: 0
+openfiles: /home/markus/git/pg-winch-firmware/pg_winch_firmware/pg_winch_firmware.ino:1745:1046:0:
+openfiles: /home/markus/git/pg-winch-firmware/pg_winch_firmware/MachineState.h:738:0:1:
 snr_recursion_level: 6
 convertcolumn_horizontally: 0
 adv_open_matchname: 0
@@ -11,7 +13,7 @@ view_left_panel: 1
 default_mime_type: text/plain
 e2c.convert_xml: 1
 c2e.convert_iso: 0
-opendir: file:///home/markus/H%C3%A4mtningar
+opendir: file:///home/markus/git/pg-winch-firmware/pg_winch_firmware
 wrap_text_default: 0
 documentroot: smb://markus-dator/htdocs/web_sys
 bookmarks_filename_mode: 0
@@ -32,8 +34,10 @@ e2c.convert_iso: 0
 ssearch_casesens: 0
 charmap_block: 1
 webroot: http://local.web_sys
+recent_files: file:///home/markus/git/pg-winch-firmware/pg_winch_firmware/pg_winch_firmware.ino
+recent_files: file:///home/markus/git/pg-winch-firmware/pg_winch_firmware/MachineState.h
 snr_replacetype: 0
-savedir: smb://markus-dator/htdocs/web_sys/member_access/forms
+savedir: file:///home/markus/git/pg-winch-firmware/pg_winch_firmware
 spell_check_default: 0
 spell_insert_entities: 0
 last_filefilter: 
@@ -52,6 +56,8 @@ e2c.convert_special: 0
 autoindent: 1
 fb_viewmode: 0
 recent_dirs: file:///home/markus
+recent_dirs: file:///home/markus/git/pg-winch-firmware
+recent_dirs: file:///home/markus/git/pg-winch-firmware/pg_winch_firmware
 fb_focus_follow: 1
 ssearch_unescape: 0
 c2e.convert_symbol: 0
