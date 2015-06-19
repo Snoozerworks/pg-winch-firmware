@@ -30,10 +30,21 @@ const unsigned int GEAR_ENGAGE_DELAY = 2000; // Delay in milliseconds to let aut
 // Pulses per turn for pump and drum tachometers
 const byte PPT_DRUM = 8; // Pulses per turn for drum (equals the number of magnets)
 const byte PPT_PUMP = 10; // Pulses per turn for pump (twice the number of magnets)
+const byte PPT_ENGINE = 2; // Pulses per turn for pump (twice the number of magnets)
+
+// Number of milliseconds between pulses of lowest detectable speed.
+const unsigned long MAX_DELAY_DRUM = 750;  // Pules intervall for 10rpm
+const unsigned long MAX_DELAY_ENGI = 1500; // Pules intervall for 20rpm
+const unsigned long MAX_DELAY_PUMP = 600;  // Pules intervall for 10rpm
+
+// Gear ratios x100, i.e. 811 is 8,11 x gearbox input = gearbox output.
+const int GEAR_1_RATIO = 811;	// 1st gear
+const int GEAR_2_RATIO = 491;   // 2nd gear
+const int GEAR_3_RATIO = 339;	// 3rd gear
 
 // I2C addresses
-const uint8_t I2C_LCD_ADDR = 0x63; // Display 
-const uint8_t I2C_TMP_ADDR = 0x48; // Temperature sensor
+const byte I2C_LCD_ADDR = 0x63; // Display
+const byte I2C_TMP_ADDR = 0x48; // Temperature sensor
 
 // Tachometer sensor error trigger levels.
 const byte TACH_PUMP_ERR_COUNT = 3; // Number of samples with pump zero speed before triggering a tachometer error.
