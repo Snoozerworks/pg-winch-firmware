@@ -47,18 +47,36 @@ MachineState M;			// Machine state
 ThrottleServo servo;	// Servo object
 Controller pid; 		// PID controller object
 
-/**
- * Callback for interrupt 0 (digital pin 2) pump speed.
- */
-void pump_tic() {
-	++M._pump_ticks;
-}
 
 /**
  * Callback for interrupt 1 (digital pin 3) drum speed.
  */
 void drum_tic() {
+	M._drum_time = (unsigned int) millis();;
 	++M._drum_ticks;
+}
+
+/**
+ * Callback for interrupt 0 (digital pin 2) pump speed.
+ */
+void pump_tic() {
+	M._pump_time = (unsigned int) millis();;
+	++M._pump_ticks;
+}
+
+/**
+ * Callback for engine speed (analog pin A2) for engine speed.
+ */
+void engine_tic() {
+	M._engi_time = (unsigned int) millis();;
+	++M._engi_ticks;
+}
+
+/**
+ * Interrupt service routine for pin A2 which handles engine rpm input
+ */
+ISR (PCINT1_vect) {
+  engine_tic();
 }
 
 /**
@@ -427,6 +445,9 @@ void setup() {
 	// Initialise states
 	M.mode = C::MD_STARTUP; // Flag for startup
 	M.mark_time = 0;
+	M.drum_time_old = M._drum_time - MAX_DELAY_DRUM;
+	M.engi_time_old = M._engi_time - MAX_DELAY_ENGI;
+	M.pump_time_old = M._pump_time - MAX_DELAY_PUMP;
 
 	// Start serial for RN-42 bluetooth module.
 	Serial.begin(115200);
@@ -456,6 +477,10 @@ void setup() {
 	// Setup pump and drum tachometers
 	attachInterrupt(0, pump_tic, CHANGE);
 	attachInterrupt(1, drum_tic, RISING);
+
+	// Setup pin change interrupt for engine rpm on pin A2
+	PCMSK1 = bit (PCINT10);	// want only pin A2
+	PCICR  |= bit (PCIE1);	// enable pin change interrupts for A0 to A
 
 	// Now enter main loop...
 }
