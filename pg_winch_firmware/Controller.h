@@ -44,10 +44,8 @@ public:
 	/**
 	 * The controller to regulate pump speed.
 	 *
-	 * The drum speed is needed to linearise the output. Compensation for
-	 * throttle response at different engine speeds is made. The engine speed
-	 * (or rather gearbox out speed) is proportional to the sum of drum and pump
-	 * speed which is used for the compensation.
+	 * By also supplying engine speed, compensation for throttle response at
+	 * different engine speeds can be made.
 	 *
 	 * See parameters.h for parameters to adjust the controller.
 	 *
@@ -55,7 +53,7 @@ public:
 	 * @param byte drum_spd Process value 0-255.
 	 * @return byte signal 0-255.
 	 */
-	byte process(byte pump_spd, byte drum_spd) {
+	byte process(byte pump_spd, byte engi_spd) {
 		using namespace P;
 
 		int eng_spd_comp; // Gain compensation for engine speed
@@ -92,16 +90,20 @@ public:
 		// (Well, engine speed is in fact gearbox out speed as we don't know
 		// what gear is actually engaged.)
 
-		eng_spd_comp = ((int) pump_spd * PPT_DRUM + (int) drum_spd * PPT_PUMP)
-				>> 6; // [0, 71]
-		eng_spd_comp = 256 + eng_spd_comp * params[I_PID_K].val; // [-2016, 2528] , -32, 32
-		eng_spd_comp = max(0, eng_spd_comp); // [0, 2528]
+//		eng_spd_comp = ((int) pump_spd * PPT_DRUM + (int) drum_spd * PPT_PUMP)
+//				>> 6; // [0, 71]
+//		eng_spd_comp = 256 + eng_spd_comp * params[I_PID_K].val; // [-2016, 2528] , -32, 32
+//		eng_spd_comp = max(0, eng_spd_comp); // [0, 2528]
+//
+//		output = params[I_PID_P].val * error + // [-4064, 4064]
+//				params[I_PID_I].val * integral + // [0, 8160]
+//				params[I_PID_D].val * derivative; // [-2048, 2048]  ==> tot [-6112, 14272]
 
-		output = params[I_PID_P].val * error + // [-4064, 4064]
-				params[I_PID_I].val * integral + // [0, 8160]
-				params[I_PID_D].val * derivative; // [-2048, 2048]  ==> tot [-6112, 14272]
-		output = (output * (long) eng_spd_comp) >> 11; // [-15451136, 36079616], [-7544, 17617]
-		output = constrain(output, 0, 255);
+
+		eng_spd_comp = 8 - ((engi_spd * params[I_PID_K].val) / 64);
+		eng_spd_comp = constrain(eng_spd_comp, 1, 8);
+
+		output = output * eng_spd_comp;
 
 		return (byte) output;
 	}
