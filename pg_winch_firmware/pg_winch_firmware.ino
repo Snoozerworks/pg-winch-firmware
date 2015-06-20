@@ -51,7 +51,7 @@ Controller pid; 		// PID controller object
 /**
  * Callback for interrupt 1 (digital pin 3) drum speed.
  */
-void drum_tic() {
+inline void drum_tic() {
 	M._drum_time = (unsigned int) millis();;
 	++M._drum_ticks;
 }
@@ -59,7 +59,7 @@ void drum_tic() {
 /**
  * Callback for interrupt 0 (digital pin 2) pump speed.
  */
-void pump_tic() {
+inline void pump_tic() {
 	M._pump_time = (unsigned int) millis();;
 	++M._pump_ticks;
 }
@@ -67,10 +67,12 @@ void pump_tic() {
 /**
  * Callback for engine speed (analog pin A2) for engine speed.
  */
-void engine_tic() {
+
+inline void engine_tic() {
 	M._engi_time = (unsigned int) millis();;
 	++M._engi_ticks;
 }
+
 
 /**
  * Interrupt service routine for pin A2 which handles engine rpm input
