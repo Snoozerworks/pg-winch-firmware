@@ -147,10 +147,12 @@ void idle_mode() {
  */
 void tow_mode() {
 	using namespace P;
+	int drum_overspeed;
 
-	// Check drum tachometer zero-speed fault. Drum speed is allowed to be
-	// zero only for a limited amount of applied throttle and samples.
-	if (M.drum_spd == 0 && servo.pos > TACH_DRUM_ERR_SERVO_TRESHOLD) {
+	// Check drum tachometer zero-speed fault. Drum speed is checked when engine
+	// is running. The fault is detected if drum speed is zero for more than a
+	// limited number of samples.
+	if (M.drum_spd == 0 && M.engi_spd > ENGINE_ON_SPD) {
 		if (M.drum_err_cnt++ > TACH_DRUM_ERR_COUNT) {
 			M.set_bits(true, M.errors, C::ERR_DRUM_SENSOR);
 		}
@@ -158,8 +160,8 @@ void tow_mode() {
 		M.drum_err_cnt = 0;
 	}
 
-	// Check pump tachometer zero-speed fault. Drum speed is allowed to be
-	// zero only for a limited amount of samples.
+	// Check pump tachometer zero-speed fault. Drum speed is allowed to be zero
+	// only for a limited amount of samples.
 	if (M.pump_spd == 0) {
 		if (M.pump_err_cnt++ > TACH_PUMP_ERR_COUNT) {
 			M.set_bits(true, M.errors, C::ERR_PUMP_SENSOR);
@@ -169,13 +171,14 @@ void tow_mode() {
 	}
 
 	// Check drum overspeed.
-	M.set_bits(M.drum_spd > params[I_DRUM_SPD].val, M.errors, C::ERR_DRUM_MAX);
+	drum_overspeed = M.drum_spd -params[I_DRUM_SPD].val;
+	M.set_bits(drum_overspeed > 0, M.errors, C::ERR_DRUM_MAX);
 
 	// Set servo position.
 	if (MachineState::chk_bits(M.errors, C::ERR_DRUM_MAX)) {
 		// Drum overspeed detected.
 		// Reduce throttle to limit drum speed. Don't update PID-controller.
-		servo.pos -= min(servo.pos, 10);
+		servo.pos = constrain(servo.pos - drum_overspeed * THROTTLE_OVERSPEED_GAIN, 0, 255);
 
 	} else if (MachineState::chk_bits(M.errors,
 			C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
@@ -187,7 +190,7 @@ void tow_mode() {
 		// Oil temperature too high. Continue to operate with minimum pump
 		// speed to minimise further heat.
 		pid.setpoint = (byte) params[I_PUMP_RPM].low;
-		servo.pos = pid.process(M.pump_spd_f, M.drum_spd_f);
+		servo.pos = pid.process(M.pump_spd, M.engi_spd);
 
 	} else {
 		// No errors.
@@ -195,7 +198,7 @@ void tow_mode() {
 		// Update PID-controller. Set pump setpoint (which may have
 		// been previously changed due to a fault condition).
 		pid.setpoint = (byte) params[I_PUMP_RPM].val;
-		servo.pos = pid.process(M.pump_spd_f, M.drum_spd_f);
+		servo.pos = pid.process(M.pump_spd, M.engi_spd);
 
 	}
 

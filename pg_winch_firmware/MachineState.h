@@ -39,10 +39,10 @@ public:
 	byte drum_err_cnt; 			// Drum speed error counter
 	byte pump_err_cnt; 			// Pump speed error counter
 
-	char drum_spd;				// Drum speed in 1/10 x rpm, i.e. 1=10 rpm.
+	char drum_spd;				// Drum speed in 1/10 x rpm, i.e. 1=10 rpm. Negative speed unwinds.
 	byte engi_spd;				// Engine speed in 1/20 x rpm, i.e. 1=20 rpm.
 	byte pump_spd;				// Pump speed in 1/10 x rpm, i.e. 1=10 rpm.
-	byte drum_spd_f;			// Filtered drum speed.
+	char drum_spd_f;			// Filtered drum speed.
 	byte pump_spd_f;			// Filtered pump speed.
 
 	int temp; 					// Oil temperature
@@ -122,7 +122,7 @@ public:
 			// At least one tick since last sample
 			duration = dt - drum_time_old;
 			drum_time_old = dt;
-			new_drum_spd = min(127, (dc * MAX_DELAY_DRUM) / duration); // rpm * 0.1
+			new_drum_spd = min(127, (long)(dc * MAX_DELAY_DRUM) / duration); // rpm * 0.1
 
 		} else {
 			// No tick during last sample.
@@ -141,7 +141,7 @@ public:
 			// At least one tick since last sample
 			duration = et - engi_time_old;
 			engi_time_old = et;
-			engi_spd = min(255, (ec * MAX_DELAY_ENGI) / duration); // rpm * 0.05
+			engi_spd = min(255, (long)(ec * MAX_DELAY_ENGI) / duration); // rpm * 0.05
 
 		} else {
 			// No tick during last sample.
@@ -160,7 +160,7 @@ public:
 			// At least one tick since last sample
 			duration = pt - pump_time_old;
 			pump_time_old = pt;
-			pump_spd = min(255, (pc * MAX_DELAY_PUMP) / duration); // rpm * 0.1
+			pump_spd = min(255, (long)(pc * MAX_DELAY_PUMP) / duration); // rpm * 0.1
 
 		} else {
 			// No tick during last sample.
@@ -221,7 +221,7 @@ public:
 
 		}
 
-		// Filter drum speed200L * engi_spd - CUR_GEAR_RATIO * pump_spd
+		// Filter drum speed
 		drum_filter = drum_filter - (drum_filter >> FILTER_SHIFT) + drum_spd;
 		drum_spd_f = (byte) (drum_filter >> FILTER_SHIFT);
 

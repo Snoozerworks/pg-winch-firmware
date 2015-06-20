@@ -50,7 +50,7 @@ public:
 	 * See parameters.h for parameters to adjust the controller.
 	 *
 	 * @param byte pump_spd Process value 0-255.
-	 * @param byte drum_spd Process value 0-255.
+	 * @param byte engine_spd Process value 0-127.
 	 * @return byte signal 0-255.
 	 */
 	byte process(byte pump_spd, byte engi_spd) {
@@ -82,24 +82,8 @@ public:
 		preError = error;
 
 		// To linearise throttle response, which is believed to be a function of
-		// engine speed, the compensation factor eng_spd_comp is used. Regulator
-		// output is then basically calculated as
-		//    "PID value / (engine speed/k + k)" where k is params[I_PID_K]
-		// I.e. the higher engine speed the lower the gain. Note that changing k
-		// may also require adjustment of p, i and d gains.
-		// (Well, engine speed is in fact gearbox out speed as we don't know
-		// what gear is actually engaged.)
-
-//		eng_spd_comp = ((int) pump_spd * PPT_DRUM + (int) drum_spd * PPT_PUMP)
-//				>> 6; // [0, 71]
-//		eng_spd_comp = 256 + eng_spd_comp * params[I_PID_K].val; // [-2016, 2528] , -32, 32
-//		eng_spd_comp = max(0, eng_spd_comp); // [0, 2528]
-//
-//		output = params[I_PID_P].val * error + // [-4064, 4064]
-//				params[I_PID_I].val * integral + // [0, 8160]
-//				params[I_PID_D].val * derivative; // [-2048, 2048]  ==> tot [-6112, 14272]
-
-
+		// engine speed, the compensation factor eng_spd_comp is used. It's applied
+		// as a output gain.
 		eng_spd_comp = 8 - ((engi_spd * params[I_PID_K].val) / 64);
 		eng_spd_comp = constrain(eng_spd_comp, 1, 8);
 
