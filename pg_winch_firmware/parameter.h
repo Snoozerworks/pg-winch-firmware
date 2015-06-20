@@ -33,9 +33,9 @@ const byte PPT_PUMP = 10; // Pulses per turn for pump (twice the number of magne
 const byte PPT_ENGINE = 2; // Pulses per turn for pump (twice the number of magnets)
 
 // Number of milliseconds between pulses of lowest detectable speed.
-const unsigned long MAX_DELAY_DRUM = 750;  // Pules intervall for 10rpm
-const unsigned long MAX_DELAY_ENGI = 1500; // Pules intervall for 20rpm
-const unsigned long MAX_DELAY_PUMP = 600;  // Pules intervall for 10rpm
+const unsigned int MAX_DELAY_DRUM = 750;  // Pules intervall for 10rpm
+const unsigned int MAX_DELAY_ENGI = 1500; // Pules intervall for 20rpm
+const unsigned int MAX_DELAY_PUMP = 600;  // Pules intervall for 10rpm
 
 // Gear ratios x100, i.e. 811 is 8,11 x gearbox input = gearbox output.
 const int GEAR_1_RATIO = 811;	// 1st gear
@@ -49,13 +49,17 @@ const byte I2C_TMP_ADDR = 0x48; // Temperature sensor
 // Tachometer sensor error trigger levels.
 const byte TACH_PUMP_ERR_COUNT = 3; // Number of samples with pump zero speed before triggering a tachometer error.
 const byte TACH_DRUM_ERR_COUNT = 2; // Number of samples with drum zero speed before triggering a tachometer error.
-const byte TACH_DRUM_ERR_SERVO_TRESHOLD = 95; // Max servo setpoint value allowed before resetting servo due to drum zero speed.
+const byte ENGINE_ON_SPD 			 = 55;	// Engine on speed threashold value. 
 
 // Tachometer filter parameter see types.h
 const byte FILTER_SHIFT = 1; // Shift parameter. 1-3 should likely suffice.
 
 // Manual throttle step (used in idle mode)
 const byte MAN_THROTTLE_STEP = 10;
+
+// Factor to reduce throttle position at drum overspeed.
+// Is given in 10/255 % throttle per rpm overspeed. 
+const byte THROTTLE_OVERSPEED_GAIN = 4;
 
 //
 // Pins are defined in namespace Pins
@@ -134,8 +138,8 @@ const byte INST_PARAM_END = I_PID_IMAX;
 
 // See Parameter type definition for how to define a parameter.
 Parameter params[] = { //
-		{ 0, "Max linhastighet", 50, 20, 70, 1, 28, 100 }, //
-				{ 1, "Pumpvarv", 13, 6, 36, 1, 90, 540 }, //
+		{ 0, "Max linhastighet", 100, 73, 114, 1, 55, 86 }, //
+				{ 1, "Pumpvarv", 13, 6, 35, 1, 60, 350 }, //
 				{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
 				{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
 				{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
