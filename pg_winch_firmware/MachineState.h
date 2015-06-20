@@ -42,7 +42,7 @@ public:
 	char drum_spd;				// Drum speed in 1/10 x rpm, i.e. 1=10 rpm. Negative speed unwinds.
 	byte engi_spd;				// Engine speed in 1/20 x rpm, i.e. 1=20 rpm.
 	byte pump_spd;				// Pump speed in 1/10 x rpm, i.e. 1=10 rpm.
-	char drum_spd_f;			// Filtered drum speed.
+//	char drum_spd_f;			// Filtered drum speed.
 	byte pump_spd_f;			// Filtered pump speed.
 
 	int temp; 					// Oil temperature
@@ -94,7 +94,6 @@ public:
 		byte dc;						// Drum tachometer count
 		byte pc;						// Pump tachometer count
 		byte ec;						// Engine tachometer count
-		static unsigned int drum_filter = 0; 	// Filter
 		static unsigned int pump_filter = 0; 	// Filter
 		unsigned int duration;
 		unsigned int dt, et, pt;	// Timings for drum, engine and pump
@@ -220,10 +219,6 @@ public:
 			}
 
 		}
-
-		// Filter drum speed
-		drum_filter = drum_filter - (drum_filter >> FILTER_SHIFT) + drum_spd;
-		drum_spd_f = (byte) (drum_filter >> FILTER_SHIFT);
 
 		// Filter pump speed
 		pump_filter = pump_filter - (pump_filter >> FILTER_SHIFT) + pump_spd;
