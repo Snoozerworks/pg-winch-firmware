@@ -39,7 +39,7 @@ const unsigned int MAX_DELAY_PUMP = 600;  // Pules intervall for 10rpm
 
 // Gear ratios x100, i.e. 811 is 8,11 x gearbox input = gearbox output.
 const int GEAR_1_RATIO = 811;	// 1st gear
-const int GEAR_2_RATIO = 491;   // 2nd gear
+const int GEAR_2_RATIO = 491;	// 2nd gear
 const int GEAR_3_RATIO = 339;	// 3rd gear
 
 // I2C addresses
@@ -138,20 +138,19 @@ const byte INST_PARAM_END = I_PID_IMAX;
 
 // See Parameter type definition for how to define a parameter.
 Parameter params[] = { //
-				{ 0, "Max linhastighet", 100, 73, 114, 1, 55, 86 }, //
-				{ 1, "Pumpvarv", 13, 6, 35, 1, 60, 350 }, //
-				{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
-				{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
-				{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
-				{ 5, "Servo max-puls", 2140, 600, 2400, 20, 600, 2400 }, //
-				{ 6, "Servo reset tid", 250, 100, 600, 25, 100, 600 }, //
-				{ 7, "PID p", 13, 1, 32, 1, 1, 32 }, //
-				{ 8, "PID i", 5, 0, 32, 1, 0, 32 }, //
-				{ 9, "PID d", 7, 0, 32, 1, 0, 32 }, //
-				{ 10, "PID k", -17, -32, 32, 1, -32, 32 }, //
-				{ 11, "PID i gr\xE1ns", 95, 0, 255, 1, 0, 255 } //
-		};
-
+		{ 0, "Max linhastighet", 100, 73, 114, 1, 55, 86 }, //
+		{ 1, "Pumpvarv", 13, 6, 35, 1, 60, 350 }, //
+		{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
+		{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
+		{ 4, "Servo min-puls", 800, 600, 2400, 20, 600, 2400 }, //
+		{ 5, "Servo max-puls", 2140, 600, 2400, 20, 600, 2400 }, //
+		{ 6, "Servo reset tid", 250, 100, 600, 25, 100, 600 }, //
+		{ 7, "PID p", 13, 1, 32, 1, 1, 32 }, //
+		{ 8, "PID i", 5, 0, 32, 1, 0, 32 }, //
+		{ 9, "PID d", 7, 0, 32, 1, 0, 32 }, //
+		{ 10, "PID k", -17, -32, 32, 1, -32, 32 }, //
+		{ 11, "PID i gr\xE1ns", 95, 0, 255, 1, 0, 255 } //
+	};
 }
 
 #endif /* PARAMETERS_H */
