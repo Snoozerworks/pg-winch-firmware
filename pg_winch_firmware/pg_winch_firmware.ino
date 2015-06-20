@@ -179,12 +179,14 @@ void tow_mode() {
 		// Drum overspeed detected.
 		// Reduce throttle to limit drum speed. Don't update PID-controller.
 		servo.pos = constrain(servo.pos - drum_overspeed * THROTTLE_OVERSPEED_GAIN, 0, 255);
+		pid.reset();
 
 	} else if (MachineState::chk_bits(M.errors,
 			C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR)) {
 		// Drum or tachometer fault. Can be reset only by re-enter tow mode.
 		// Release throttle.
 		servo.pos = 0;
+		pid.reset();
 
 	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
 		// Oil temperature too high. Continue to operate with minimum pump
