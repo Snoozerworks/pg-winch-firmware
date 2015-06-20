@@ -47,8 +47,8 @@ const byte I2C_LCD_ADDR = 0x63; // Display
 const byte I2C_TMP_ADDR = 0x48; // Temperature sensor
 
 // Tachometer sensor error trigger levels.
-const byte TACH_PUMP_ERR_COUNT = 3; // Number of samples with pump zero speed before triggering a tachometer error.
-const byte TACH_DRUM_ERR_COUNT = 2; // Number of samples with drum zero speed before triggering a tachometer error.
+const byte TACH_PUMP_ERR_COUNT = 3; 	// Number of samples with pump zero speed before triggering a tachometer error.
+const byte TACH_DRUM_ERR_COUNT = 2; 	// Number of samples with drum zero speed before triggering a tachometer error.
 const byte ENGINE_ON_SPD 			 = 55;	// Engine on speed threashold value. 
 
 // Tachometer filter parameter see types.h
@@ -138,7 +138,7 @@ const byte INST_PARAM_END = I_PID_IMAX;
 
 // See Parameter type definition for how to define a parameter.
 Parameter params[] = { //
-		{ 0, "Max linhastighet", 100, 73, 114, 1, 55, 86 }, //
+				{ 0, "Max linhastighet", 100, 73, 114, 1, 55, 86 }, //
 				{ 1, "Pumpvarv", 13, 6, 35, 1, 60, 350 }, //
 				{ 2, "Max oljetemp.", 140, 100, 180, 2, 50, 90 }, //
 				{ 3, "Min oljetemp.", 20, 20, 80, 2, 10, 40 }, //
