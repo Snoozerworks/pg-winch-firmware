@@ -47,7 +47,6 @@ MachineState M;			// Machine state
 ThrottleServo servo;	// Servo object
 Controller pid; 		// PID controller object
 
-
 /**
  * Callback for interrupt 1 (digital pin 3) drum speed.
  */
@@ -151,32 +150,35 @@ void tow_mode() {
 	using namespace P;
 	int drum_overspeed;
 
-	// Check drum tachometer zero-speed fault. Drum speed is checked when engine
-	// is running. The fault is detected if drum speed is zero for more than a
-	// limited number of samples.
-	if (M.drum_spd == 0 && M.engi_spd > ENGINE_ON_SPD) {
-		if (M.drum_err_cnt++ > TACH_DRUM_ERR_COUNT) {
+	// Check for drum zero-speed fault when engine speed is above
+	// TACH_ZEROSPD_ENGSPD_TH. The fault is detected if drum speed is zero for
+	// more than a limited number of samples.
+	if (M.drum_spd == 0 && M.engi_spd > TACH_ZEROSPD_ENGSPD_TH) {
+		++M.drum_err_cnt;
+		if (M.drum_err_cnt > TACH_DRUM_ERR_COUNT) {
 			M.set_bits(true, M.errors, C::ERR_DRUM_SENSOR);
 		}
 	} else {
 		M.drum_err_cnt = 0;
 	}
 
-	// Check pump tachometer zero-speed fault. Drum speed is allowed to be zero
-	// only for a limited amount of samples.
-	if (M.pump_spd == 0) {
-		if (M.pump_err_cnt++ > TACH_PUMP_ERR_COUNT) {
+	// Check for pump zero-speed fault when engine speed is above
+	// TACH_ZEROSPD_ENGSPD_TH. The fault is detected if pump speed is zero for
+	// more than a limited number of samples.
+	if (M.pump_spd == 0 && M.engi_spd > TACH_ZEROSPD_ENGSPD_TH) {
+		++M.pump_err_cnt;
+		if (M.pump_err_cnt > TACH_PUMP_ERR_COUNT) {
 			M.set_bits(true, M.errors, C::ERR_PUMP_SENSOR);
 		}
 	} else {
 		M.pump_err_cnt = 0;
 	}
 
-	// Check drum overspeed.
+	// Check for drum overspeed.
 	drum_overspeed = M.drum_spd -params[I_DRUM_SPD].val;
 	M.set_bits(drum_overspeed > 0, M.errors, C::ERR_DRUM_MAX);
 
-	// Set servo position.
+	// Update throttle servo position.
 	if (MachineState::chk_bits(M.errors, C::ERR_DRUM_MAX)) {
 		// Drum overspeed detected.
 		// Reduce throttle to limit drum speed. Don't update PID-controller.
@@ -331,6 +333,7 @@ inline void finish() {
  * switches are read first in the loop.
  */
 void mode_select() {
+	static byte tow_mode_countdown;
 	byte last_mode; // Last mode of operation
 
 	// Set alive pin high while working
@@ -344,6 +347,9 @@ void mode_select() {
 	case C::MD_IDLE:
 		if (MachineState::chk_bits(M.sw, C::SW_NE)) {
 			// Gear in neutral.
+
+			tow_mode_countdown = GEAR_ENGAGE_COUNTDOWN; // Reset countdown	
+
 			if (MachineState::chk_bits(M.sw, C::SW_SE | C::SW_SP)) {
 				// Select switch or Installation settings (virtual) switch active.
 				// Change to installation configuration mode.
@@ -356,8 +362,8 @@ void mode_select() {
 				servo.detach();
 			}
 
-		} else if (!MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
-			// Gear engaged and oil temperature not too high.
+		} else if (!MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH) && tow_mode_countdown == 0) {
+			// Gear engaged, oil temperature not too high and gear engaged. 
 
 			// Change to tow mode.
 			M.mode = C::MD_TOWING;
@@ -370,8 +376,12 @@ void mode_select() {
 			pid.reset();
 
 			// Wait for automatic transmission to engage.
-			delay(GEAR_ENGAGE_DELAY);
+			//delay(GEAR_ENGAGE_DELAY);
 
+		} else if (tow_mode_countdown > 0) {
+			// Gear engaged. Countdown to let gear engage before moving to tow mode.
+			tow_mode_countdown--;
+		
 		}
 		break;
 
@@ -508,7 +518,7 @@ void loop() {
 	// Select mode.
 	mode_select();
 
-	// Read tachometer inputs and update machine state.
+	// Read tachometer inputs and enter selected machine mode.
 	M.read_tachometers();
 
 	switch (M.mode) {

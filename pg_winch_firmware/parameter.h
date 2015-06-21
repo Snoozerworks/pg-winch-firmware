@@ -25,7 +25,7 @@
 const byte T_SAMPLE = 125; // Sample period 0-255ms.
 const unsigned int CONF_TIMEOUT = 6000; // Timeout in ms for exiting config mode.
 const byte READ_TIMEOUT = 70; // Timeout in ms for I2C and serial data.
-const unsigned int GEAR_ENGAGE_DELAY = 2000; // Delay in milliseconds to let automatic gearbox engage.
+const byte GEAR_ENGAGE_COUNTDOWN = 2000/T_SAMPLE; // Number of samples to count before moving into tow_mode. Lets gearbox settle.
 
 // Pulses per turn for pump and drum tachometers
 const byte PPT_DRUM = 8; // Pulses per turn for drum (equals the number of magnets)
@@ -47,9 +47,9 @@ const byte I2C_LCD_ADDR = 0x63; // Display
 const byte I2C_TMP_ADDR = 0x48; // Temperature sensor
 
 // Tachometer sensor error trigger levels.
-const byte TACH_PUMP_ERR_COUNT = 3; 	// Number of samples with pump zero speed before triggering a tachometer error.
-const byte TACH_DRUM_ERR_COUNT = 2; 	// Number of samples with drum zero speed before triggering a tachometer error.
-const byte ENGINE_ON_SPD 			 = 55;	// Engine on speed threashold value. 
+const byte TACH_PUMP_ERR_COUNT = 4; 	// Number of samples with pump zero speed before triggering a tachometer error.
+const byte TACH_DRUM_ERR_COUNT = 4; 	// Number of samples with drum zero speed before triggering a tachometer error.
+const byte TACH_ZEROSPD_ENGSPD_TH	= 43;	// Engine speed threashold value in 1/20th of rpm for drum and pump zero speed error. 
 
 // Tachometer filter parameter see types.h
 const byte FILTER_SHIFT = 1; // Shift parameter. 1-3 should likely suffice.
