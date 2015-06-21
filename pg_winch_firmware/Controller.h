@@ -87,9 +87,22 @@ public:
 		eng_spd_comp = 8 - ((engi_spd * params[I_PID_K].val) / 64);
 		eng_spd_comp = constrain(eng_spd_comp, 1, 8);
 
+		output = params[I_PID_P].val * error + // [-4064, 4064]
+				params[I_PID_I].val * integral + // [0, 8160]
+				params[I_PID_D].val * derivative; // [-2048, 2048]  ==> tot [-6112, 14272]
+
 		output = output * eng_spd_comp;
+		output = constrain(output, 0, 255);
 
 		return (byte) output;
+	}
+
+	void set_param_i(byte pid_i) {
+		using namespace P;
+		if (pid_i > params[I_PID_I].high || pid_i < params[I_PID_I].low) {
+			return;
+		}
+		integral = params[I_PID_I].val * integral / pid_i;
 	}
 
 };
