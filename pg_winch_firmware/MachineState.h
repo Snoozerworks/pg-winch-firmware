@@ -121,12 +121,12 @@ public:
 			// At least one tick since last sample
 			duration = dt - drum_time_old;
 			drum_time_old = dt;
-			new_drum_spd = min(127, (long)(dc * MAX_DELAY_DRUM) / duration); // rpm * 0.1
+			new_drum_spd = min(127, (long )(dc * MAX_DELAY_DRUM) / duration); // rpm * 0.1
 
 		} else {
 			// No tick during last sample.
 			duration = time - drum_time_old;
-			new_drum_spd = min((byte)new_drum_spd, MAX_DELAY_DRUM / duration);
+			new_drum_spd = min(abs(drum_spd), MAX_DELAY_DRUM / duration);
 			if (duration > MAX_DELAY_DRUM) {
 				// Pulse duration longer than min detecable speed. Set old time so speed become zero.
 				drum_time_old = mark_time - MAX_DELAY_DRUM - 1;
@@ -140,7 +140,7 @@ public:
 			// At least one tick since last sample
 			duration = et - engi_time_old;
 			engi_time_old = et;
-			engi_spd = min(255, (long)(ec * MAX_DELAY_ENGI) / duration); // rpm * 0.05
+			engi_spd = min(255, (long )(ec * MAX_DELAY_ENGI) / duration); // rpm * 0.05
 
 		} else {
 			// No tick during last sample.
@@ -159,7 +159,7 @@ public:
 			// At least one tick since last sample
 			duration = pt - pump_time_old;
 			pump_time_old = pt;
-			pump_spd = min(255, (long)(pc * MAX_DELAY_PUMP) / duration); // rpm * 0.1
+			pump_spd = min(255, (long )(pc * MAX_DELAY_PUMP) / duration); // rpm * 0.1
 
 		} else {
 			// No tick during last sample.
@@ -347,7 +347,7 @@ public:
 	void serial_send() {
 		byte tx_buffer[12];
 		tx_buffer[0] = mode;
-		tx_buffer[1] = time >> 24;
+		tx_buffer[1] = time >> 24;	// Skip msb? Use for servopos instead?
 		tx_buffer[2] = time >> 16;
 		tx_buffer[3] = time >> 8;
 		tx_buffer[4] = time;
