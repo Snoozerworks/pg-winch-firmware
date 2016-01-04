@@ -245,7 +245,7 @@ void config_mode() {
 			if (i >= OPER_PARAM_END) {
 				i = 0;
 			} else {
-				i++;
+				++i;
 			}
 
 		} else {
@@ -253,7 +253,7 @@ void config_mode() {
 			if (i >= INST_PARAM_END || i <= OPER_PARAM_END) {
 				i = OPER_PARAM_END + 1;
 			} else {
-				i++;
+				++i;
 			}
 
 		}
@@ -279,7 +279,7 @@ void config_mode() {
 
 		} else if (i < INST_PARAM_END) {
 			// No index specified. Select next.
-			i++;
+			++i;
 
 		} else {
 			// No index specified. Select next (wrap to first).
