@@ -345,10 +345,10 @@ public:
 	 *
 	 */
 	void serial_send() {
-		byte tx_buffer[12];
+		byte tx_buffer[13];
 		tx_buffer[0] = mode;
-		tx_buffer[1] = time >> 24;	// Skip msb? Use for servopos instead?
-		tx_buffer[2] = time >> 16;
+		tx_buffer[1] = 0; // time >> 24;	// Skip msb? Use for servopos instead?
+		tx_buffer[2] = 0; // time >> 16;
 		tx_buffer[3] = time >> 8;
 		tx_buffer[4] = time;
 		tx_buffer[5] = errors;
