@@ -3,6 +3,7 @@
 
 #include "Arduino.h"
 #include "parameter.h"
+#include <Servo.h>
 
 //class ThrottleServo: public Servo {
 class ThrottleServo: public Servo {
