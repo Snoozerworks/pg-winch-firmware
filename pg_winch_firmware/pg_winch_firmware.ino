@@ -1,8 +1,8 @@
 // Libraries to include
-#include <I2C.h>
+//#include <I2C.h>
 #include <I2C_LCD.h>
-#include <Servo.h>
-#include <EEPROM.h>
+//#include <Servo.h>
+//#include <EEPROM.h>
 
 // Project files to include
 #include "types.h"
