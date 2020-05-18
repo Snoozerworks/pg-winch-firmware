@@ -62,7 +62,7 @@ public:
 		// calculate error
 		error = setpoint - pump_spd; // [-127,127] (limited below)
 
-		// Maximise/minimise output if error is too big/small.
+		// Maximize/minimize output if error is too big/small.
 		if (error > 127) {
 			integral = derivative = 0;
 			return 255;
@@ -81,7 +81,7 @@ public:
 		// remember the error for the next time around.
 		preError = error;
 
-		// To linearise throttle response, which is believed to be a function of
+		// To linearize throttle response, which is believed to be a function of
 		// engine speed, the compensation factor eng_spd_comp is used. It's applied
 		// as a output gain.
 		eng_spd_comp = 8 - ((engi_spd * params[I_PID_K].val) / 64);

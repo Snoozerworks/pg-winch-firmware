@@ -194,7 +194,7 @@ void tow_mode() {
 
 	} else if (MachineState::chk_bits(M.errors, C::ERR_TEMP_HIGH)) {
 		// Oil temperature too high. Continue to operate with minimum pump
-		// speed to minimise further heat.
+		// speed to minimize further heat.
 		pid.setpoint = (byte) params[I_PUMP_RPM].low;
 		servo.pos = pid.process(M.pump_spd, M.engi_spd);
 
@@ -459,7 +459,7 @@ void setup() {
 	Pins::OUT1.high();
 	Pins::OUT2.high();
 
-	// Initialise states
+	// Initialize states
 	M.mode = C::MD_STARTUP; // Flag for startup
 	M.mark_time = 0;
 	M.drum_time_old = M._drum_time - MAX_DELAY_DRUM;
