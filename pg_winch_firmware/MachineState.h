@@ -8,6 +8,9 @@
 #ifndef MACHINESTATE_H
 #define MACHINESTATE_H
 
+// Libraries
+#include <I2C.h>
+
 // Project files to include
 #include "types.h"
 #include "parameter.h"
@@ -39,9 +42,9 @@ public:
 	byte drum_err_cnt; 			// Drum speed error counter
 	byte pump_err_cnt; 			// Pump speed error counter
 
-	char drum_spd;				// Drum speed in 1/10 x rpm, i.e. 1=10 rpm. Negative speed unwinds.
-	byte engi_spd;				// Engine speed in 1/20 x rpm, i.e. 1=20 rpm.
-	byte pump_spd;				// Pump speed in 1/10 x rpm, i.e. 1=10 rpm.
+	char drum_spd;		// Pulses per time MAX_DELAY_DRUM. Negative speed unwinds line.
+	byte engi_spd;		// Pulses per time MAX_DELAY_ENGI.
+	byte pump_spd;		// Pulses per time MAX_DELAY_PUMP.
 //	char drum_spd_f;			// Filtered drum speed.
 	byte pump_spd_f;			// Filtered pump speed.
 
@@ -91,15 +94,14 @@ public:
 	 *
 	 */
 	void read_tachometers() {
-		byte dc;						// Drum tachometer count
-		byte pc;						// Pump tachometer count
-		byte ec;						// Engine tachometer count
-		static unsigned int pump_filter = 0; 	// Filter
-		unsigned int duration;
+		byte dc, ec, pc;					// Drum, pump and engine tachometer count
 		unsigned int dt, et, pt;	// Timings for drum, engine and pump
+		static unsigned int pump_filter = 0;	 // Filter
+		unsigned int duration;
 
-		char new_gear;
-		char new_drum_spd;
+		char proposed_gear;
+		//char new_drum_spd;
+		char drum_spd_old = drum_spd;
 
 		// Get tachometer counts and timings.
 		noInterrupts();
@@ -116,70 +118,63 @@ public:
 		pt = _pump_time;
 		interrupts();
 
-		// Calculcate drum speed. Ranges from -1270 to 1270rpm with 10 rpm resolution.
-		if (dc > 0) {
-			// At least one tick since last sample
-			duration = dt - drum_time_old;
-			drum_time_old = dt;
-			new_drum_spd = min(127, (long )(dc * MAX_DELAY_DRUM) / duration); // rpm * 0.1
+		// Get elapsed time since last drum tick. If speed is 0, assume MAX_DELAY_ .
+		duration = (drum_spd == 0) ? MAX_DELAY_DRUM : dt - drum_time_old;
+		drum_time_old = dt;
 
-		} else {
+		// Calculate drum speed (without sign).
+		if (duration == 0) {
+			// Avoid divide by zero. Set max speed.
+			drum_spd = 127;
+		} else if (dc == 0) {
 			// No tick during last sample.
-			duration = time - drum_time_old;
-			new_drum_spd = min(abs(drum_spd), MAX_DELAY_DRUM / duration);
-			if (duration > MAX_DELAY_DRUM) {
-				// Pulse duration longer than min detecable speed. Set old time so speed become zero.
-				drum_time_old = mark_time - MAX_DELAY_DRUM - 1;
-
-			}
-
+			drum_spd = min(127, MAX_DELAY_DRUM / duration);
+		} else {
+			// At least one tick since last sample.
+			drum_spd = min(127,
+					((unsigned long )(dc * MAX_DELAY_DRUM)) / duration);
 		}
 
-		// Calculcate engine speed. Ranges from 0 to 5100rpm with 20 rpm resolution.
-		if (ec > 0) {
-			// At least one tick since last sample
-			duration = et - engi_time_old;
-			engi_time_old = et;
-			engi_spd = min(255, (long )(ec * MAX_DELAY_ENGI) / duration); // rpm * 0.05
+		// Get elapsed time since last engine tick. If speed is 0, assume MAX_DELAY_ .
+		duration = (engi_spd == 0) ? MAX_DELAY_ENGI : et - engi_time_old;
+		engi_time_old = et;
 
-		} else {
+		// Calculate engine speed (without sign).
+		if (duration == 0) {
+			// Avoid divide by zero. Set max speed.
+			engi_spd = 255;
+		} else if (ec == 0) {
 			// No tick during last sample.
-			duration = time - engi_time_old;
-			engi_spd = min(engi_spd, MAX_DELAY_ENGI / duration);
-			if (duration > MAX_DELAY_ENGI) {
-				// Pulse duration longer than min detecable speed. Set old time so speed become zero.
-				engi_time_old = mark_time - MAX_DELAY_ENGI - 1;
-
-			}
-
+			engi_spd = min(255, MAX_DELAY_ENGI / duration);
+		} else {
+			// At least one tick since last sample.
+			engi_spd = min(255,
+					((unsigned long )(ec * MAX_DELAY_ENGI)) / duration);
 		}
 
-		// Calculcate pump speed. Ranges from 0 to 2550rpm with 10rpm resolution.
-		if (pc > 0) {
-			// At least one tick since last sample
-			duration = pt - pump_time_old;
-			pump_time_old = pt;
-			pump_spd = min(255, (long )(pc * MAX_DELAY_PUMP) / duration); // rpm * 0.1
+		// Get elapsed time since last pump tick. If speed is 0, assume MAX_DELAY_ .
+		duration = (pump_spd == 0) ? MAX_DELAY_PUMP : pt - pump_time_old;
+		pump_time_old = pt;
 
-		} else {
+		// Calculate pump speed (without sign).
+		if (duration == 0) {
+			// Avoid divide by zero. Set max speed.
+			pump_spd = 255;
+		} else if (pc == 0) {
 			// No tick during last sample.
-			duration = time - pump_time_old;
-			pump_spd = min(pump_spd, MAX_DELAY_PUMP / duration); // rpm * 0.1
-
-			if (duration > MAX_DELAY_PUMP) {
-				// Pulse duration longer than min detecable speed. Set old time so speed become zero.
-				pump_time_old = mark_time - MAX_DELAY_PUMP - 1;
-
-			}
-
+			pump_spd = min(255, MAX_DELAY_PUMP / duration);
+		} else {
+			// At least one tick since last sample.
+			pump_spd = min(255,
+					((unsigned long )(pc * MAX_DELAY_PUMP)) / duration);
 		}
 
 		//
 		// Calculate current gear and direction of the drum. The relation
 		// between drum, engine and pump velocities is;
-		// 		engine_velocity = U * (drum_velocity + pump_velocity).
+		//		 engine_velocity = U * (drum_velocity + pump_velocity).
 		//
-		// The algorithm finds what gear ratio U that best matches the relation
+		// The algorithm finds the gear ratio U that best matches the relation
 		// testing both positive and negative drum speeds. Both directions are
 		// considered since drum direction is not directly measured. However,
 		// due to not measuring the drum direction, the result may be invalid at
@@ -198,24 +193,34 @@ public:
 		if (chk_bits(sw, C::SW_NE)) {
 			// Gear in neutral. Drum can only unwind.
 			gear = 0;
-			drum_spd = -new_drum_spd;
+			drum_spd = -drum_spd;
 
 		} else {
 			// Gear not in neutral.
-			new_gear = get_cur_gear_ratio(engi_spd, pump_spd, new_drum_spd);
-			if (new_gear < 0) {
-				new_drum_spd = -new_drum_spd;
-				new_gear = -new_gear;
+			proposed_gear = get_cur_gear_ratio(engi_spd, pump_spd, drum_spd);
+
+			// New gear. Validate gear change.
+			char cur_dir = (drum_spd_old < 0) ? -1 : 1;
+			char new_dir = 1;
+			if (proposed_gear < 0) {
+				new_dir = -1;
+				proposed_gear = -proposed_gear;
 			}
-			// Drum speed shall increase/decrease if gear decrease/increase. If
-			// not, keep gear of previous sample.
-			if ((new_gear - gear) * (new_drum_spd - drum_spd) > 0) {
-				// Gear change valid
-				gear = new_gear;
-				drum_spd = new_drum_spd;
+
+			if (cur_dir == new_dir) {
+				// No drum direction change. Just update gear and speed.
+				drum_spd *= cur_dir;
+				gear = proposed_gear;
+
+			} else if (abs(drum_spd_old) + abs(drum_spd) <= 3) {
+				// Drum direction change? Only if speed change is small.
+				// Update speed only.
+				drum_spd *= new_dir;
+				gear = proposed_gear;
+
 			} else {
-				drum_spd =
-						(drum_spd < 0) ? -abs(new_drum_spd) : abs(new_drum_spd);
+				// Keep drum direction and gear but updated speed.
+				drum_spd *= cur_dir;
 			}
 
 		}
@@ -232,56 +237,52 @@ public:
 	 * Method returns the gear with ratio U that minimizes the relation
 	 * 		| engine_velocity - U * (pump_velocity +/- drum_velocity) |
 	 *
-	 * Returned value can be +/- 1,2 or 3. Negative value indicates negative
-	 * drum direction.
+	 * Returned value can be -1, 1, 2 or 3. Negative value indicates a negative
+	 * drum direction (unwinding).
 	 *
-	 * Drum speed in rpm is pump_spd*10
-	 * Engine speed in rpm is engi_spd*20
-	 * Pump speed in rpm is pump_spd*10
-	 *
-	 * Gear ratios are 1/100*GEAR_X_RATIO for X=1,2,3
-	 * So, minimize;
-	 * 	   | engi_spd*20 - GEAR_X_RATIO/100 * (drum_spd*10 + pump_spd*10) |
-	 * 	...which can be simplified to
-	 * 	   | 200*engi_spd - GEAR_X_RATIO * (drum_spd + pump_spd) |
 	 */
-	char get_cur_gear_ratio(byte e_spd, byte p_spd, char d_spd) const {
-		long e_term, diff1, diff2;
-		char gear;	// Current gear 1,2 or 3. Sign equals drum direction.
+	char get_cur_gear_ratio(byte e_spd, byte p_spd, byte d_spd) const { 
+    // Gear ratios are 1/100*GEAR_X_RATIO for X=1,2,3
+    // So, find ratio tha minimize;
+    //			|a - GEAR_X_RATIO * (b + c)| or
+    //      |a - GEAR_X_RATIO * (b - c)|
+    // where
+    //		 a = engi_spd * TO_RPM_ENGI * 100;
+    //		 b = pump_spd * TO_RPM_DRUM;
+    //		 c = drum_spd * TO_RPM_PUMP;
 
-		e_term = 200L * e_spd;
+		char gear;	// Current gear 1,2 or 3. Sign equals drum direction.
+		long diff1;	// Current best guess of gear ratio.
+		long diff2;	// Next guess of gear ratio.
+
+		long a = e_spd * TO_RPM_ENGI * 100;
+		long b = p_spd * TO_RPM_DRUM;
+		long c = d_spd * TO_RPM_PUMP;
+
+    gear = -1;
+
+		// First gear, negative drum speed.
+		// Negative drum speed may occur only in 1st gear.
+		diff1 = abs( a - GEAR_1_RATIO * (b-c) );
 
 		// First gear, positive drum speed
-		diff1 = e_term - GEAR_1_RATIO * (p_spd + d_spd);
-		gear = 1;
-		// First gear, negative drum speed
-		diff2 = e_term - GEAR_1_RATIO * (p_spd - d_spd);
-		if (abs(diff2) < abs(diff1)) {
-			gear = -1;
+		diff2 = abs( a - GEAR_1_RATIO * (b+c) );
+		if (diff2 < diff1) {
+			gear = 1;
 			diff1 = diff2;
 		}
+
 		// Second gear, positive drum speed
-		diff2 = e_term - GEAR_2_RATIO * (p_spd + d_spd);
-		if (abs(diff2) < abs(diff1)) {
+		diff2 = abs( a - GEAR_2_RATIO * (b+c) );
+		if (diff2 < diff1) {
 			gear = 2;
 			diff1 = diff2;
 		}
-		// Second gear, negative drum speed
-		diff2 = e_term - GEAR_2_RATIO * (p_spd - d_spd);
-		if (abs(diff2) < abs(diff1)) {
-			gear = -2;
-			diff1 = diff2;
-		}
+
 		// Third gear, positive drum speed
-		diff2 = e_term - GEAR_3_RATIO * (p_spd + d_spd);
-		if (abs(diff2) < abs(diff1)) {
+		diff2 = abs( a - GEAR_3_RATIO * (b+c) );
+		if (diff2 < diff1) {
 			gear = 3;
-			diff1 = diff2;
-		}
-		// Third gear, negative drum speed
-		diff2 = e_term - GEAR_3_RATIO * (p_spd - d_spd);
-		if (abs(diff2) < abs(diff1)) {
-			gear = -3;
 			diff1 = diff2;
 		}
 
