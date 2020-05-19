@@ -32,10 +32,15 @@ const byte PPT_DRUM = 8;    // Pulses per turn for drum (one pulse per magnet)
 const byte PPT_PUMP = 10;   // Pulses per turn for pump (two pulses per magnet)
 const byte PPT_ENGI = 2;    // Pulses per turn (one pulse per cylinder)
 
+// Speed resolution. Factors to convert pulses to rpm. MUST BE <=127 rpm/pulse!
+const byte TO_RPM_DRUM = ceil(1700/127);  // 14 rpm/pulse, max +/-1778rpm (~1.1 km/h)
+const byte TO_RPM_ENGI = ceil(6600/255);  // 26 rpm/pulse, max 6630rpm
+const byte TO_RPM_PUMP = ceil(2000/255);  // 8  rpm/pulse, max 2040rpm
+
 // Number of milliseconds between pulses of lowest detectable speed.
-const unsigned int MAX_DELAY_DRUM = 750;  // Pules intervall for 10rpm
-const unsigned int MAX_DELAY_ENGI = 1500; // Pules intervall for 20rpm
-const unsigned int MAX_DELAY_PUMP = 600;  // Pules intervall for 10rpm
+const unsigned int MAX_DELAY_DRUM  = floor(60000 / (TO_RPM_DRUM * PPT_DRUM));  // 535 ms
+const unsigned int MAX_DELAY_ENGI  = floor(60000 / (TO_RPM_ENGI * PPT_ENGI));  // 1153 ms
+const unsigned int MAX_DELAY_PUMP  = floor(60000 / (TO_RPM_PUMP * PPT_PUMP));  // 545 ms
 
 // Gear ratios x100, i.e. 811 is 8,11 x gearbox input = gearbox output.
 const int GEAR_1_RATIO = 811;  // 1st gear
