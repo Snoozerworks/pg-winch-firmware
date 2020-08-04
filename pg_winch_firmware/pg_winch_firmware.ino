@@ -492,8 +492,8 @@ void setup() {
 	I2c.write(I2C_TMP_ADDR, (uint8_t) 0);
 
 	// Setup pump and drum tachometers
-	attachInterrupt(0, pump_tic, CHANGE);
-	attachInterrupt(1, drum_tic, RISING);
+	attachInterrupt(0, pump_tic, CHANGE);	// Pin D2
+	attachInterrupt(1, drum_tic, RISING);	// Pin D3
 
 	// Setup pin change interrupt for engine rpm on pin A2
 	PCMSK1 = bit (PCINT10);	// want only pin A2

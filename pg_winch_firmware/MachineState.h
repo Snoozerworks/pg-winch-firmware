@@ -28,7 +28,7 @@ public:
 	volatile unsigned int _pump_time; 	// Tachometer interrupt 0 timings
 	volatile unsigned int _engi_time; 	// Tachometer interrupt A2
 
-	char gear;	// Current gear 0 (neutral), 1, 2 or 3.
+	char gear;	// Current gear -1, 0, 1, 2 or 3.
 
 	// Time for tachometer ticks at previous sample.
 	unsigned int drum_time_old; 	// Tachometer interrupt 1 timings
@@ -94,9 +94,9 @@ public:
 	 *
 	 */
 	void read_tachometers() {
-		byte dc, ec, pc;					// Drum, pump and engine tachometer count
-		unsigned int dt, et, pt;	// Timings for drum, engine and pump
-		static unsigned int pump_filter = 0;	 // Filter
+		byte dc, ec, pc;                      // Drum, pump and engine tachometer count
+		unsigned int dt, et, pt;              // Timings for drum, engine and pump
+		static unsigned int pump_filter = 0;  // Filter
 		unsigned int duration;
 
 		char proposed_gear;
