@@ -37,8 +37,8 @@ const uint8_t I2C_TMP_ADDR = 0x48; // Temperature sensor
 
 // Tachometer sensor error trigger levels.
 const byte TACH_PUMP_ERR_COUNT = 3; // Number of samples with pump zero speed before triggering a tachometer error.
-const byte TACH_DRUM_ERR_COUNT = 2; // Number of samples with drum zero speed before triggering a tachometer error.
-const byte TACH_DRUM_ERR_SERVO_TRESHOLD = 95; // Max servo setpoint value allowed before resetting servo due to drum zero speed.
+const byte TACH_DRUM_ERR_COUNT = 3; // Number of samples with drum zero speed before triggering a tachometer error.
+const byte TACH_DRUM_ERR_SERVO_TRESHOLD = 115; // Max servo setpoint value allowed before resetting servo due to drum zero speed.
 
 // Tachometer filter parameter see types.h
 //const byte FILTER_SHIFT = 2; // Shift parameter. 1-3 should likely suffice.
