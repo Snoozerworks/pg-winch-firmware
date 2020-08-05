@@ -17,7 +17,7 @@
  * > su
  * > usermod -a -G tty yourUserName
  * > usermod -a -G dialout yourUserName
- * Log off and log on again for the changes to take effect! 
+ * Log off and log on again for the changes to take effect!
  *
  * 2. Set Arduino IDE to use board "Arduino UNO"
  *
@@ -27,7 +27,7 @@
  * module shall respond with CMD. Then send "S~,4<CR>". To verify the setting
  * send "O<CR>" (O as in Oliver) and module will repond with a list of settings.
  * Don't include the "" when sending the commands.
- * 
+ *
  */
 
 /* This is for debugging only */
@@ -74,7 +74,7 @@ void setup() {
 	Serial.begin(115200);
 	Serial.setTimeout(READ_TIMEOUT);
 
-	// Start I2C 
+	// Start I2C
 	I2c.begin();
 	I2c.timeOut(READ_TIMEOUT);
 
@@ -115,7 +115,7 @@ void loop() {
 	// Read inputs (except tachometer)
 	read_switches();
 
-	// Select mode. 
+	// Select mode.
 	mode_select();
 
 	// Read tachometer inputs.
@@ -193,7 +193,7 @@ void read_switches() {
  * switches are read first in the loop.
  */
 void mode_select() {
-	byte last_mode; // Last mode of operation	
+	byte last_mode; // Last mode of operation
 
 	// Set alive pin high while working
 	Pins::ALIVE_LED.high();
@@ -201,7 +201,7 @@ void mode_select() {
 	// Update last mode.
 	last_mode = M.md;
 
-	// Check conditioins for changing mode.
+	// Check conditions for changing mode.
 	switch (M.md) {
 	case C::MD_IDLE:
 		if (chk_bits(M.sw, C::SW_NE)) {
@@ -223,7 +223,7 @@ void mode_select() {
 			// Change to tow mode.
 			M.md = C::MD_TOWING;
 
-			// Reset tachometer errors each time tow mode is entered.
+			// Reset tachometer errors before tow mode is entered.
 			set_bits(false, M.err, C::ERR_DRUM_SENSOR | C::ERR_PUMP_SENSOR);
 
 			// Reset PID-controller to avoid servo glitches.
@@ -334,7 +334,7 @@ void idle_mode() {
 
 /**
  * This is the second step when in tow mode. Calculates and controls the servo
- * position based on tachometer values. Also check for drum overspeed, drum 
+ * position based on tachometer values. Also check for drum overspeed, drum
  * tachometer fault and pump tachometer fault.
  */
 void tow_mode() {
@@ -491,7 +491,7 @@ void config_mode() {
 		}
 
 		// Mark time when changing parameter. Will pause 100ms, then timeout
-		// after CONF_TIMEOUT ms.  
+		// after CONF_TIMEOUT ms.
 		M.mark_time = millis() + 100;
 	}
 
@@ -543,12 +543,12 @@ const char* get_err_str() {
 }
 
 /**
- * Configuration mode. 
+ * Configuration mode.
  */
 /**
  * Sets or clears bits in bitfield to bits in bitmask. If set is false, bits
  * are unset otherwise they are set.
- * 
+ *
  * @param set Flag true to set bits. Unset otherwise.
  * @param bitfield Byte to set or unset bits in.
  * @param bitmask Byte with bits to set or unset.
@@ -562,8 +562,8 @@ void set_bits(boolean set, byte& bitfield, byte bitmask) {
 }
 
 /**
- * Returns true if at least one bit in bitfield is active in in bitmask. 
- * 
+ * Returns true if at least one bit in bitfield is active in in bitmask.
+ *
  * @param byte Bits to look for in bitmask.
  * @param byte Bits to compare bitfield with.
  * @return boolean True if any bit is set.

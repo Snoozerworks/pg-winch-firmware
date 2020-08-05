@@ -11,7 +11,7 @@
  * This file contains various parameters used to setup, map input
  * and output pins, set sample time, timeouts, tachometer pulses etc.
  *
- * Note! Special characters to be printed on the lcd must be manually 
+ * Note! Special characters to be printed on the lcd must be manually
  * replaced with HEX codes as follows:
  *   å  - 128 - \x80
  *   ä  - 225 - \xE1
@@ -21,7 +21,7 @@
  *   Ö  - 131 - \x83
  */
 
-// Delays and times 
+// Delays and times
 const byte T_SAMPLE = 200; // Sample period 0-255ms.
 const word CONF_TIMEOUT = 6000; // Timeout in ms for exiting config mode.
 const int READ_TIMEOUT = 100; // Timeout in ms for I2C and serial data.
@@ -32,7 +32,7 @@ const byte PPT_DRUM = 8; // Pulses per turn for drum (equals the number of magne
 const byte PPT_PUMP = 10; // Pulses per turn for pump (twice the number of magnets)
 
 // I2C addresses
-const uint8_t I2C_LCD_ADDR = 0x63; // Display 
+const uint8_t I2C_LCD_ADDR = 0x63; // Display
 const uint8_t I2C_TMP_ADDR = 0x48; // Temperature sensor
 
 // Tachometer sensor error trigger levels.
