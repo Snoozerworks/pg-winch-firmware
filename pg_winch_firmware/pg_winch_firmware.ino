@@ -375,7 +375,7 @@ void tow_mode() {
 		// Drum overspeed, drum zero speed or pump zero speed faults
 		// detected. Reduce throttle to limit drum speed. Don't update
 		// PID-controller.
-		M.servo.pos -= min(M.servo.pos, 10);
+		M.servo.pos -= min(M.servo.pos, 20);
 
 	} else if (chk_bits(M.err, C::ERR_TEMP_HIGH)) {
 		// Oil temperature too high. Continue to operate at minimum pump
